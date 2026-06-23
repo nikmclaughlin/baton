@@ -1,7 +1,7 @@
 # WordPress.org directory pre-submission review
 
 **Plugin:** Baton  
-**Version reviewed:** 0.4.0  
+**Version reviewed:** 1.0.0  
 **Date:** May 2026  
 **Reviewer:** Internal pre-flight (not an official WordPress.org review)
 
@@ -34,8 +34,8 @@ Use this document before requesting a plugin slug or uploading to SVN. Re-run af
 
 ### Guideline 3: Stable Version in SVN — **N/A until published**
 
-- `readme.txt` `Stable tag: 0.4.0` matches `baton.php` `Version: 0.4.0`
-- **Action on publish:** Tag `0.4.0` in SVN; keep `Stable tag` aligned with the tagged release (do not use `trunk` as stable tag)
+- `readme.txt` `Stable tag: 1.0.0` matches `baton.php` `Version: 1.0.0`
+- **Action on publish:** Tag `1.0.0` in SVN; keep `Stable tag` aligned with the tagged release (do not use `trunk` as stable tag)
 
 ### Guideline 4: Human-Readable Code — **PASS**
 
@@ -94,7 +94,7 @@ Use this document before requesting a plugin slug or uploading to SVN. Re-run af
 
 ### Guideline 15: Increment Version Numbers — **PASS**
 
-- Version `0.4.0` consistent in `baton.php`, `BATON_VERSION`, `package.json`, `readme.txt` Stable tag
+- Version `1.0.0` consistent in `baton.php`, `BATON_VERSION`, `package.json`, `readme.txt` Stable tag
 
 ### Guideline 16: Plugin Must Be Complete at Submission — **PASS**
 
