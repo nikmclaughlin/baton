@@ -163,6 +163,12 @@
 					const statusClass = step.success
 						? 'aw-step-ok'
 						: 'aw-step-fail';
+					const loopInfo = step.loop
+						? ' &mdash; ' +
+						  ( step.loop.iterations || 0 ) +
+						  ' iteration' +
+						  ( step.loop.iterations === 1 ? '' : 's' )
+						: '';
 					html +=
 						'<details class="aw-run-step ' +
 						statusClass +
@@ -172,6 +178,7 @@
 						( i + 1 ) +
 						':</strong> ' +
 						escapeHtml( step.ability || '' ) +
+						loopInfo +
 						( step.success ? ' ✓' : ' ✗' ) +
 						'</summary>';
 					if ( step.warnings && step.warnings.length ) {
@@ -180,20 +187,54 @@
 							escapeHtml( step.warnings.join( ' ' ) ) +
 							'</p>';
 					}
-					html +=
-						'<h4>Input</h4><pre class="aw-result-pre">' +
-						escapeHtml( stringifyJson( step.input ) ) +
-						'</pre>';
-					if ( step.success ) {
+					if ( step.loop && step.loop.iterations > 0 ) {
 						html +=
-							'<h4>Output</h4><pre class="aw-result-pre">' +
-							escapeHtml( stringifyJson( step.output ) ) +
+							'<h4>Input (resolved before loop)</h4><pre class="aw-result-pre">' +
+							escapeHtml( stringifyJson( step.input ) ) +
 							'</pre>';
-					} else if ( step.error ) {
 						html +=
-							'<h4>Error</h4><p class="aw-error">' +
-							escapeHtml( step.error ) +
-							'</p>';
+							'<h4>Output (' +
+							step.loop.iterations +
+							' iterations)</h4>';
+						if (
+							Array.isArray( step.output ) &&
+							step.output.length > 1
+						) {
+							step.output.forEach( function ( out, j ) {
+								html +=
+									'<details class="aw-run-iteration"><summary>Iteration ' +
+									( j + 1 ) +
+									'</summary><pre class="aw-result-pre">' +
+									escapeHtml( stringifyJson( out ) ) +
+									'</pre></details>';
+							} );
+						} else if ( Array.isArray( step.output ) ) {
+							html +=
+								'<pre class="aw-result-pre">' +
+								escapeHtml( stringifyJson( step.output[ 0 ] || {} ) ) +
+								'</pre>';
+						} else {
+							html +=
+								'<pre class="aw-result-pre">' +
+								escapeHtml( stringifyJson( step.output ) ) +
+								'</pre>';
+						}
+					} else {
+						html +=
+							'<h4>Input</h4><pre class="aw-result-pre">' +
+							escapeHtml( stringifyJson( step.input ) ) +
+							'</pre>';
+						if ( step.success ) {
+							html +=
+								'<h4>Output</h4><pre class="aw-result-pre">' +
+								escapeHtml( stringifyJson( step.output ) ) +
+								'</pre>';
+						} else if ( step.error ) {
+							html +=
+								'<h4>Error</h4><p class="aw-error">' +
+								escapeHtml( step.error ) +
+								'</p>';
+						}
 					}
 					html += '</details>';
 				} );

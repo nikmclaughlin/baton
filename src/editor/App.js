@@ -19,6 +19,7 @@ import {
 	getAbility,
 	parseStepInput,
 	definitionFromSteps,
+	indentNestedLabel,
 	mappingRowLabel,
 	sanitizeMappingsForSave,
 	groupAbilitiesByCategory,
@@ -264,7 +265,7 @@ function DataFilterPanel( {
 		}
 		return ( upstreamAbility.output_paths || [] ).map( ( p ) => ( {
 			value: p.value,
-			label: p.label,
+			label: indentNestedLabel( p.label ),
 		} ) );
 	}, [ stepIndex, upstreamAbility ] );
 
@@ -274,7 +275,7 @@ function DataFilterPanel( {
 		}
 		return ( downstreamAbility.input_targets || [] ).map( ( t ) => ( {
 			value: t.value,
-			label: t.label,
+			label: indentNestedLabel( t.label ),
 		} ) );
 	}, [ downstreamAbility ] );
 
@@ -446,6 +447,98 @@ function DataFilterPanel( {
 	);
 }
 
+function LoopPanel( { step, ability, onToggle, onFieldChange } ) {
+	const fieldOptions = useMemo( () => {
+		if ( ! ability?.input_targets ) {
+			return [];
+		}
+		return ability.input_targets.map( ( t ) => ( {
+			value: t.value,
+			label: indentNestedLabel( t.label ),
+		} ) );
+	}, [ ability ] );
+
+	const hasLoop = !! step.loop;
+	const loopField = step.loop?.field || '';
+
+	return (
+		<div className="baton-loop-panel">
+			<div className="baton-loop-panel__header">
+				<div className="baton-loop-panel__toggle">
+					<input
+						type="checkbox"
+						checked={ hasLoop }
+						onChange={ ( e ) => {
+							const checked = e.target.checked;
+							onToggle( checked );
+						} }
+					/>
+					<span className="baton-loop-panel__icon">↻</span>
+					<span className="baton-loop-panel__label">
+						{ __( 'Loop over array', 'baton' ) }
+					</span>
+				</div>
+				{ hasLoop && (
+					<Button
+						variant="link"
+						isDestructive
+						onClick={ () => {
+							onToggle( false );
+						} }
+						size="small"
+					>
+						{ __( 'Remove loop', 'baton' ) }
+					</Button>
+				) }
+			</div>
+			{ hasLoop && (
+				<div className="baton-loop-panel__body">
+					<p className="description baton-loop-panel__help">
+						{ __(
+							'Runs this step once per element in the selected input field. Use a data filter to map an array (e.g. via wildcard) into the field, then select it here to loop over each element.',
+							'baton'
+						) }
+					</p>
+					{ fieldOptions.length > 0 ? (
+						<div className="baton-ability-field">
+							<span className="baton-ability-field__label">
+								{ __( 'Iterate over', 'baton' ) }
+							</span>
+							<select
+								className="baton-ability-select"
+								value={ loopField }
+								aria-label={ __( 'Loop field', 'baton' ) }
+								onChange={ ( e ) =>
+									onFieldChange( e.target.value )
+								}
+							>
+								<option value="">
+									{ __( 'Select field…', 'baton' ) }
+								</option>
+								{ fieldOptions.map( ( opt ) => (
+									<option
+										key={ opt.value }
+										value={ opt.value }
+									>
+										{ opt.label }
+									</option>
+								) ) }
+							</select>
+						</div>
+					) : (
+						<p className="description baton-loop-panel__empty">
+							{ __(
+								'This ability has no input fields. Add a data filter to map an array into an input field first.',
+								'baton'
+							) }
+						</p>
+					) }
+				</div>
+			) }
+		</div>
+	);
+}
+
 function IoDetailPanel( { panel, abilities, steps, onClose, onInputChange } ) {
 	const step = panel ? steps[ panel.stepIndex ] : null;
 	const ability = step ? getAbility( abilities, step.ability ) : null;
@@ -600,6 +693,8 @@ function StepCard( {
 	onMoveUp,
 	onMoveDown,
 	onRemove,
+	onLoopToggle,
+	onLoopFieldChange,
 } ) {
 	const ability = getAbility( abilities, step.ability );
 	const inputSummary =
@@ -687,6 +782,18 @@ function StepCard( {
 						/>
 					</div>
 				</div>
+				{ ability && (
+					<LoopPanel
+						step={ step }
+						ability={ ability }
+						onToggle={ ( checked ) =>
+							onLoopToggle( index, checked )
+						}
+						onFieldChange={ ( field ) =>
+							onLoopFieldChange( index, field )
+						}
+					/>
+				) }
 			</CardBody>
 		</Card>
 	);
@@ -742,6 +849,7 @@ export default function WorkflowEditor( { abilities, initialDefinition } ) {
 			ability: slug,
 			input,
 			input_mappings: [],
+			loop: null,
 		} );
 	};
 
@@ -772,6 +880,18 @@ export default function WorkflowEditor( { abilities, initialDefinition } ) {
 
 	const changeMappings = ( stepIndex, mappings ) => {
 		updateStep( stepIndex, { input_mappings: mappings } );
+	};
+
+	const toggleLoop = ( stepIndex, enabled ) => {
+		updateStep( stepIndex, {
+			loop: enabled ? { field: '' } : null,
+		} );
+	};
+
+	const changeLoopField = ( stepIndex, field ) => {
+		updateStep( stepIndex, {
+			loop: { field },
+		} );
 	};
 
 	if ( ! abilities.length ) {
@@ -838,6 +958,12 @@ export default function WorkflowEditor( { abilities, initialDefinition } ) {
 							onMoveUp={ () => moveStep( index, -1 ) }
 							onMoveDown={ () => moveStep( index, 1 ) }
 							onRemove={ () => removeStep( index ) }
+							onLoopToggle={ ( stepIndex, enabled ) =>
+								toggleLoop( stepIndex, enabled )
+							}
+							onLoopFieldChange={ ( stepIndex, field ) =>
+								changeLoopField( stepIndex, field )
+							}
 						/>
 						{ index < steps.length - 1 && (
 							<DataFilterSlot

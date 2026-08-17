@@ -125,12 +125,27 @@ final class Baton_Workflow_CPT {
 
 			$input = Baton_Input_Sanitizer::sanitize_input_array( $step['input'] ?? array() );
 
-			$definition['steps'][] = array(
+			$clean_step = array(
 				'ability'             => $ability,
 				'input'               => $input,
 				'use_previous_output' => ! empty( $step['use_previous_output'] ),
 				'input_mappings'      => Baton_Input_Mapper::sanitize_mappings( $step['input_mappings'] ?? array() ),
 			);
+
+			// Sanitize optional loop config.
+			if ( isset( $step['loop'] ) && is_array( $step['loop'] ) ) {
+				$loop_field = isset( $step['loop']['field'] )
+					? Baton_Input_Mapper::sanitize_field_name( (string) $step['loop']['field'] )
+					: '';
+
+				if ( '' !== $loop_field ) {
+					$clean_step['loop'] = array(
+						'field' => $loop_field,
+					);
+				}
+			}
+
+			$definition['steps'][] = $clean_step;
 		}
 
 		return $definition;
