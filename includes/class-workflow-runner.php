@@ -106,14 +106,105 @@ final class Baton_Workflow_Runner {
 			$step_report['input']    = $resolved['input'];
 			$step_report['warnings'] = $resolved['warnings'];
 
-			/**
-			 * Fires before a workflow step executes.
-			 *
-			 * @param int                  $workflow_id Workflow post ID.
-			 * @param int                  $step_index  Step index.
-			 * @param mixed                $input       Resolved input.
-			 * @param array<string, mixed> $step        Step definition.
-			 */
+			// --- Loop over array field -------------------------------------
+			$loop_field = '';
+			if ( isset( $step['loop'] ) && is_array( $step['loop'] ) && isset( $step['loop']['field'] ) ) {
+				$loop_field = Baton_Input_Mapper::sanitize_field_name( (string) $step['loop']['field'] );
+			}
+
+			$loop_array = null;
+			if ( '' !== $loop_field && is_array( $resolved['input'] ) ) {
+				$loop_array = Baton_Input_Mapper::get_value_at_path( $resolved['input'], $loop_field );
+			}
+
+			if ( '' !== $loop_field && is_array( $loop_array ) ) {
+				if ( empty( $loop_array ) ) {
+					$step_report['warnings'][] = sprintf(
+						/* translators: %s: field name */
+						__( 'Loop field "%s" is empty; step skipped.', 'baton' ),
+						$loop_field
+					);
+					$step_report['success'] = true;
+					$step_report['output']  = array();
+					$step_report['loop']    = array(
+						'field'      => $loop_field,
+						'iterations' => 0,
+					);
+					$report['steps'][]      = $step_report;
+					$previous_output        = array();
+					continue;
+				}
+
+				// Iterate over each element in the loop array.
+				$outputs = array();
+				$failed  = false;
+
+				foreach ( $loop_array as $element ) {
+					$iteration_input = $resolved['input'];
+					Baton_Input_Mapper::set_value_at_path( $iteration_input, $loop_field, $element );
+
+					/**
+					 * Fires before a workflow step executes.
+					 *
+					 * @param int                  $workflow_id Workflow post ID.
+					 * @param int                  $step_index  Step index.
+					 * @param mixed                $input       Resolved input for this iteration.
+					 * @param array<string, mixed> $step        Step definition.
+					 */
+					do_action( 'baton_before_step', $workflow_id, (int) $index, $iteration_input, $step );
+
+					$iter_result = self::execute_step( $ability_slug, $ability, $iteration_input, $workflow_id, $workflow_stack );
+
+					if ( is_wp_error( $iter_result ) ) {
+						$step_report['error'] = $iter_result->get_error_message();
+						$step_report['loop']  = array(
+							'field'      => $loop_field,
+							'iterations' => count( $outputs ) + 1,
+						);
+						$report['steps'][]    = $step_report;
+						$report['success']    = false;
+						$report['error']      = $step_report['error'];
+						$failed               = true;
+						break;
+					}
+
+					$outputs[] = $iter_result;
+
+					/**
+					 * Fires after a workflow step executes successfully.
+					 *
+					 * @param int                  $workflow_id Workflow post ID.
+					 * @param int                  $step_index  Step index.
+					 * @param mixed                $input       Input passed to the ability.
+					 * @param mixed                $output      Ability output.
+					 * @param array<string, mixed> $step        Step definition.
+					 */
+					do_action( 'baton_after_step', $workflow_id, (int) $index, $iteration_input, $iter_result, $step );
+				}
+
+				if ( $failed ) {
+					break;
+				}
+
+				$step_report['success'] = true;
+				$step_report['output']  = $outputs;
+				$step_report['loop']    = array(
+					'field'      => $loop_field,
+					'iterations' => count( $outputs ),
+				);
+				$report['steps'][]      = $step_report;
+				$previous_output        = $outputs;
+				continue;
+			} elseif ( '' !== $loop_field ) {
+				// Loop configured but field is not an array — fall back to single execution.
+				$step_report['warnings'][] = sprintf(
+					/* translators: %s: field name */
+					__( 'Loop field "%s" is not an array; executing step once.', 'baton' ),
+					$loop_field
+				);
+			}
+
+			// --- Single execution (no loop) --------------------------------
 			do_action( 'baton_before_step', $workflow_id, (int) $index, $resolved['input'], $step );
 
 			$result = self::execute_step( $ability_slug, $ability, $resolved['input'], $workflow_id, $workflow_stack );
@@ -131,15 +222,6 @@ final class Baton_Workflow_Runner {
 			$report['steps'][]      = $step_report;
 			$previous_output        = $result;
 
-			/**
-			 * Fires after a workflow step executes successfully.
-			 *
-			 * @param int                  $workflow_id Workflow post ID.
-			 * @param int                  $step_index  Step index.
-			 * @param mixed                $input       Input passed to the ability.
-			 * @param mixed                $output      Ability output.
-			 * @param array<string, mixed> $step        Step definition.
-			 */
 			do_action( 'baton_after_step', $workflow_id, (int) $index, $resolved['input'], $result, $step );
 		}
 
@@ -316,6 +398,12 @@ final class Baton_Workflow_Runner {
 		}
 
 		if ( is_array( $input ) && array() === $input ) {
+			// If the schema expects an object, pass an empty object so the
+			// Abilities API validation does not reject null. For scalar
+			// schemas, null is the correct "no value" sentinel.
+			if ( ! Baton_Input_Mapper::is_scalar_input_schema( $input_schema ) ) {
+				return $ability->execute( new stdClass() );
+			}
 			return $ability->execute( null );
 		}
 

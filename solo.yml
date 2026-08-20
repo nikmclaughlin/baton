@@ -1,0 +1,31 @@
+# Visit https://soloterm.com to learn more
+name: baton
+icon: null
+icon_initials: 🪄
+processes:
+  # Watch mode for the React editor — rebuilds on src/ changes
+  Editor watch:
+    command: npm start
+    auto_start: false
+    auto_restart: true
+    restart_when_changed:
+      - src/**/*.js
+      - package.json
+
+  # wp-env Docker stack for running tests
+  WordPress env:
+    command: npx wp-env start
+    auto_start: false
+    auto_restart: false
+
+  # Run PHP integration tests via wp-env
+  PHP tests:
+    command: npm run test:php
+    auto_start: false
+    auto_restart: false
+
+  # Static analysis: PHPCS + JS lint
+  Check:
+    command: npm run check
+    auto_start: false
+    auto_restart: false

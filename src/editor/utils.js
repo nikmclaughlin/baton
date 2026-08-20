@@ -40,11 +40,47 @@ export function defaultStep() {
 		input: {},
 		use_previous_output: false,
 		input_mappings: [],
+		loop: null,
 	};
 }
 
 export function stringifyJson( value ) {
 	return JSON.stringify( value, null, 2 );
+}
+
+/**
+ * Indent a dot-path label to visually convey nesting depth.
+ *
+ * "id"               → "id"
+ * "order.id"         → "  ↳ id  (order)"
+ * "order.customer.email" → "    ↳ email  (order.customer)"
+ *
+ * The leaf segment is shown first with an arrow, followed by the parent
+ * path in parentheses, so users can scan the dropdown quickly.
+ *
+ * @param {string} label Raw dot-path label from the PHP catalog.
+ * @return {string} Human-readable indented label.
+ */
+export function indentNestedLabel( label ) {
+	if ( ! label || ! label.includes( '.' ) ) {
+		return label;
+	}
+
+	const segments = label.split( '.' );
+	const depth = segments.length - 1;
+	const leaf = segments.pop();
+	const parent = segments.join( '.' );
+
+	const displayLeaf = leaf === '*' ? '∗ (all items)' : leaf;
+
+	return (
+		'\u00A0'.repeat( depth * 2 ) +
+		'\u21B3 ' +
+		displayLeaf +
+		'  (' +
+		parent +
+		')'
+	);
 }
 
 export function formatStepInput( value, ability ) {
@@ -142,11 +178,17 @@ export function sanitizeMappingsForSave( mappings, downstreamAbility ) {
 export function definitionFromSteps( steps, initialInput = {} ) {
 	return {
 		initial_input: initialInput,
-		steps: steps.map( ( step ) => ( {
-			ability: step.ability,
-			input: step.input,
-			use_previous_output: !! step.use_previous_output,
-			input_mappings: step.input_mappings || [],
-		} ) ),
+		steps: steps.map( ( step ) => {
+			const s = {
+				ability: step.ability,
+				input: step.input,
+				use_previous_output: !! step.use_previous_output,
+				input_mappings: step.input_mappings || [],
+			};
+			if ( step.loop && step.loop.field ) {
+				s.loop = { field: step.loop.field };
+			}
+			return s;
+		} ),
 	};
 }

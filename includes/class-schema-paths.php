@@ -177,15 +177,7 @@ final class Baton_Schema_Paths {
 			);
 		}
 
-		$keys    = Baton_Input_Mapper::schema_property_keys( $schema );
-		$targets = array();
-
-		foreach ( $keys as $key ) {
-			$targets[] = array(
-				'value' => $key,
-				'label' => $key,
-			);
-		}
+		$targets = self::get_paths( $schema );
 
 		return array(
 			'targets'    => $targets,
@@ -201,29 +193,93 @@ final class Baton_Schema_Paths {
 	 * @return array<int, array{value: string, label: string}>
 	 */
 	public static function get_output_paths( array $schema ): array {
+		return self::get_paths( $schema );
+	}
+
+	/**
+	 * Recursively enumerate dot paths for any JSON schema.
+	 *
+	 * Exposes both intermediate object/array paths (e.g. "order") and their
+	 * leaf subproperties (e.g. "order.id", "order.customer.email") so the
+	 * editor can offer subproperty selection in data filter dropdowns.
+	 *
+	 * @param array<string, mixed> $schema JSON schema fragment.
+	 * @return array<int, array{value: string, label: string}>
+	 */
+	public static function get_paths( array $schema ): array {
 		$paths = array();
-		$type  = $schema['type'] ?? null;
-
-		if ( 'array' === $type && isset( $schema['items'] ) && is_array( $schema['items'] ) ) {
-			$item_props = Baton_Input_Mapper::schema_property_keys( $schema['items'] );
-			foreach ( $item_props as $prop ) {
-				$path    = '0.' . $prop;
-				$paths[] = array(
-					'value' => $path,
-					'label' => $path,
-				);
-			}
-			return $paths;
-		}
-
-		foreach ( Baton_Input_Mapper::schema_property_keys( $schema ) as $key ) {
-			$paths[] = array(
-				'value' => $key,
-				'label' => $key,
-			);
-		}
-
+		self::collect_paths( $schema, '', $paths, 0 );
 		return $paths;
+	}
+
+	/**
+	 * Maximum nesting depth for path enumeration.
+	 */
+	private const MAX_PATH_DEPTH = 5;
+
+	/**
+	 * Recursive helper for get_paths().
+	 *
+	 * @param array<string, mixed>                            $schema Schema fragment.
+	 * @param string                                          $prefix Dot-path prefix built so far.
+	 * @param array<int, array{value: string, label: string}> $paths  Collected paths (by-reference).
+	 * @param int                                             $depth  Current recursion depth.
+	 */
+	private static function collect_paths( array $schema, string $prefix, array &$paths, int $depth ): void {
+		if ( $depth >= self::MAX_PATH_DEPTH ) {
+			return;
+		}
+
+		$type = $schema['type'] ?? null;
+		if ( is_array( $type ) ) {
+			$type = $type[0] ?? null;
+		}
+
+		// Array: descend into items with a wildcard "*" so the runtime
+		// can pluck a subproperty from every element.
+		if ( 'array' === $type && isset( $schema['items'] ) && is_array( $schema['items'] ) ) {
+			$item_prefix = '' !== $prefix ? $prefix . '.*' : '*';
+
+			// Emit the bare wildcard path (e.g. "orders.*") so the user can
+			// map the entire array if desired.
+			$paths[] = array(
+				'value' => $item_prefix,
+				'label' => $item_prefix,
+				'type'  => 'array',
+			);
+
+			self::collect_paths( $schema['items'], $item_prefix, $paths, $depth + 1 );
+			return;
+		}
+
+		if ( ! isset( $schema['properties'] ) || ! is_array( $schema['properties'] ) ) {
+			return;
+		}
+
+		foreach ( $schema['properties'] as $key => $prop_schema ) {
+			if ( ! is_array( $prop_schema ) ) {
+				continue;
+			}
+
+			$path      = '' !== $prefix ? $prefix . '.' . (string) $key : (string) $key;
+			$prop_type = $prop_schema['type'] ?? null;
+			if ( is_array( $prop_type ) ) {
+				$prop_type = $prop_type[0] ?? null;
+			}
+
+			$paths[] = array(
+				'value' => $path,
+				'label' => $path,
+				'type'  => is_string( $prop_type ) ? $prop_type : 'string',
+			);
+
+			$has_properties = isset( $prop_schema['properties'] ) && is_array( $prop_schema['properties'] ) && ! empty( $prop_schema['properties'] );
+			$has_items      = 'array' === $prop_type && isset( $prop_schema['items'] ) && is_array( $prop_schema['items'] );
+
+			if ( 'object' === $prop_type || $has_properties || $has_items ) {
+				self::collect_paths( $prop_schema, $path, $paths, $depth + 1 );
+			}
+		}
 	}
 
 	/**

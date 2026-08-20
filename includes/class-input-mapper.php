@@ -186,7 +186,11 @@ final class Baton_Input_Mapper {
 	}
 
 	/**
-	 * Get a value from nested data using a dot path (e.g. "id", "user.email", "items.0.id").
+	 * Get a value from nested data using a dot path (e.g. "id", "user.email",
+	 * "items.*.id").
+	 *
+	 * When a segment is the wildcard "*", the value from every element of the
+	 * current array is collected and returned as a sequential array.
 	 *
 	 * @param mixed  $data Source data.
 	 * @param string $path Dot-separated path.
@@ -204,6 +208,33 @@ final class Baton_Input_Mapper {
 		foreach ( $segments as $segment ) {
 			if ( '' === $segment ) {
 				continue;
+			}
+
+			/*
+			 * Wildcard: collect the remaining path from every element of the
+			 * current array and return the aggregated result.
+			 */
+			if ( '*' === $segment ) {
+				if ( ! is_array( $current ) ) {
+					return null;
+				}
+
+				$remaining = implode( '.', array_slice( $segments, array_search( '*', $segments, true ) + 1 ) );
+				$collected = array();
+
+				foreach ( $current as $item ) {
+					if ( '' === $remaining ) {
+						$collected[] = $item;
+						continue;
+					}
+
+					$value = self::get_value_at_path( $item, $remaining );
+					if ( null !== $value ) {
+						$collected[] = $value;
+					}
+				}
+
+				return $collected;
 			}
 
 			if ( is_array( $current ) ) {
@@ -286,13 +317,47 @@ final class Baton_Input_Mapper {
 				continue;
 			}
 
-			$input[ $target ] = self::coerce_value( $value );
+			self::set_value_at_path( $input, $target, self::coerce_value( $value ) );
 		}
 
 		return array(
 			'input'    => $input,
 			'warnings' => $warnings,
 		);
+	}
+
+	/**
+	 * Set a value at a nested path in an array, creating intermediate arrays as needed.
+	 *
+	 * @param array<string, mixed> $input Target array (modified by-reference).
+	 * @param string               $path  Dot-separated path (e.g. "order.id").
+	 * @param mixed                $value Value to set.
+	 */
+	public static function set_value_at_path( array &$input, string $path, $value ): void {
+		$path = trim( $path );
+		if ( '' === $path ) {
+			return;
+		}
+
+		$segments = explode( '.', $path );
+		$current  = &$input;
+
+		foreach ( $segments as $i => $segment ) {
+			if ( '' === $segment ) {
+				continue;
+			}
+
+			if ( count( $segments ) - 1 === $i ) {
+				$current[ $segment ] = $value;
+				break;
+			}
+
+			if ( ! isset( $current[ $segment ] ) || ! is_array( $current[ $segment ] ) ) {
+				$current[ $segment ] = array();
+			}
+
+			$current = &$current[ $segment ];
+		}
 	}
 
 	/**
@@ -343,7 +408,21 @@ final class Baton_Input_Mapper {
 	 */
 	public static function sanitize_field_name( string $name ): string {
 		$name = trim( $name );
-		return preg_replace( '/[^a-zA-Z0-9_-]/', '', $name ) ?? '';
+		if ( '' === $name ) {
+			return '';
+		}
+
+		$segments = explode( '.', $name );
+		$clean    = array();
+
+		foreach ( $segments as $segment ) {
+			$segment = preg_replace( '/[^a-zA-Z0-9_-]/', '', $segment );
+			if ( '' !== $segment ) {
+				$clean[] = $segment;
+			}
+		}
+
+		return implode( '.', $clean );
 	}
 
 	/**
@@ -362,6 +441,10 @@ final class Baton_Input_Mapper {
 		$clean    = array();
 
 		foreach ( $segments as $segment ) {
+			if ( '*' === $segment ) {
+				$clean[] = '*';
+				continue;
+			}
 			$segment = preg_replace( '/[^a-zA-Z0-9_-]/', '', $segment );
 			if ( '' !== $segment ) {
 				$clean[] = $segment;
