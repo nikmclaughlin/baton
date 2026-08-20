@@ -17,3 +17,15 @@ processes:
     command: npx wp-env start
     auto_start: false
     auto_restart: false
+
+  # Run PHP integration tests via wp-env
+  PHP tests:
+    command: npm run test:php
+    auto_start: false
+    auto_restart: false
+
+  # Static analysis: PHPCS + JS lint
+  Check:
+    command: npm run check
+    auto_start: false
+    auto_restart: false
