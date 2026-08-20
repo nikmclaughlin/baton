@@ -13,7 +13,7 @@ Baton is a WordPress plugin that adds a thin, lightweight layer used by admins t
 
 ## Try it on Playground
 
-[![Try Baton on WordPress Playground](https://img.shields.io/badge/Try%20it%20on-WordPress%20Playground-blue)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fnikolas4175-godaddy%2Fbaton%2Fmain%2Fblueprint.json)
+[![Try Baton on WordPress Playground](https://img.shields.io/badge/Try%20it%20on-WordPress%20Playground-blue)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fnikmclaughlin%2Fbaton%2Fmain%2Fblueprint.json)
 
 Opens a disposable WordPress 6.9 site with Baton installed and lands on **Tools → Baton**.
 

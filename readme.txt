@@ -71,7 +71,7 @@ Baton deletes all `baton_workflow` posts (and their definition meta) when the pl
 * Plugin lifecycle: deactivation hook, uninstall cleanup, recursive input sanitization
 * Internationalization support
 
-See the [GitHub releases](https://github.com/nikolas4175-godaddy/baton/releases) page for the full history.
+See the [GitHub releases](https://github.com/nikmclaughlin/baton/releases) page for the full history.
 
 == Upgrade Notice ==
 
