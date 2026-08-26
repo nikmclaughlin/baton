@@ -6,3 +6,4 @@ vendor/
 node_modules/
 .wp-env.override.json
 release/
+.phpunit.result.cache
