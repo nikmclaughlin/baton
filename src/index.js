@@ -8,7 +8,7 @@ function readJsonElement( id, fallback ) {
 	}
 	try {
 		return JSON.parse( el.textContent );
-	} catch ( e ) {
+	} catch {
 		return fallback;
 	}
 }

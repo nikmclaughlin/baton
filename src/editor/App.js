@@ -589,7 +589,7 @@ function IoDetailPanel( { panel, abilities, steps, onClose, onInputChange } ) {
 			const parsed = JSON.parse( text );
 			onInputChange( panel.stepIndex, parsed ?? {} );
 			setJsonError( null );
-		} catch ( e ) {
+		} catch {
 			setJsonError(
 				__(
 					'Invalid JSON — keep editing or fix before saving the workflow.',

@@ -1,6 +1,6 @@
 {
   "name": "baton",
-  "version": "1.0.0",
+  "version": "0.5.0",
   "private": true,
   "scripts": {
     "build": "wp-scripts build",
@@ -14,7 +14,12 @@
     "test:php": "wp-env run tests-cli --env-cwd=wp-content/plugins/baton -- composer test"
   },
   "devDependencies": {
-    "@wordpress/env": "^10.28.0",
-    "@wordpress/scripts": "^30.7.0"
+    "@wordpress/env": "^11.13.0",
+    "@wordpress/scripts": "^34.1.0"
+  },
+  "dependencies": {
+    "@wordpress/components": "^39.0.0",
+    "@wordpress/element": "^8.5.0",
+    "@wordpress/i18n": "^6.26.0"
   }
 }

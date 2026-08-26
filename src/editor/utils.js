@@ -111,7 +111,7 @@ export function parseStepInput( text, ability ) {
 			}
 		}
 		return parsed || {};
-	} catch ( e ) {
+	} catch {
 		if ( ability?.input_is_scalar ) {
 			return String( text ).trim();
 		}
