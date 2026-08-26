@@ -1,0 +1,44 @@
+# Build and attach a release zip when a version tag is pushed.
+# .org SVN deploy is handled separately in deploy.yml (enable when approved).
+#
+#   git tag 0.5.0 && git push origin 0.5.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+
+      - name: Build release zip
+        run: npm run release:org -- --check
+
+      - name: Upload zip to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/baton-*.zip
+          generate_release_notes: true
+          prerelease: ${{ startsWith(github.ref_name, '0.') }}
