@@ -4,7 +4,7 @@ Tags: workflow, abilities, automation, admin
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,8 +57,8 @@ Baton deletes all `baton_workflow` posts (and their definition meta) when the pl
 
 == Changelog ==
 
-= 1.0.0 =
-* First stable WordPress.org release.
+= 0.5.0 =
+* Pre-release beta — workflow builder, runner, and ability catalog are functional.
 * Fix workflow step JSON input in the editor (local draft while typing; saves on blur without resetting the field).
 * Add WordPress.org listing assets: banner, icon, and admin screenshots.
 * Plugin Check compliance: prefixed uninstall variables, readme short description, and rely on core translation loading for wordpress.org installs.
@@ -75,8 +75,8 @@ See the [GitHub releases](https://github.com/nikmclaughlin/baton/releases) page 
 
 == Upgrade Notice ==
 
-= 1.0.0 =
-First stable public release on WordPress.org. Requires WordPress 6.9+ for the Abilities API.
+= 0.5.0 =
+Pre-release beta. Requires WordPress 6.9+ for the Abilities API.
 
 = 0.4.0 =
 Initial public release. Requires WordPress 6.9+ for the Abilities API.
