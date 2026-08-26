@@ -4,7 +4,7 @@ Tags: workflow, abilities, automation, admin
 Requires at least: 6.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.5.0
+Stable tag: 0.5.1-alpha
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,6 +57,15 @@ Baton deletes all `baton_workflow` posts (and their definition meta) when the pl
 
 == Changelog ==
 
+= 0.5.1-alpha =
+* Add subproperty selection in data filter UI (nested dot-path mapping for source and target).
+* Add wildcard `*` array subproperty mapping (extract subproperty from all array elements).
+* Add loop-over-array step execution (iterate a step once per array element, flat array output).
+* Update @wordpress/scripts to v34 and @wordpress/env to v11.
+* Update GitHub repo from nikolas4175-godaddy to nikmclaughlin.
+* Patch npm dependencies via npm audit fix.
+* Sync composer lock file.
+
 = 0.5.0 =
 * Pre-release beta — workflow builder, runner, and ability catalog are functional.
 * Fix workflow step JSON input in the editor (local draft while typing; saves on blur without resetting the field).
@@ -74,6 +83,9 @@ Baton deletes all `baton_workflow` posts (and their definition meta) when the pl
 See the [GitHub releases](https://github.com/nikmclaughlin/baton/releases) page for the full history.
 
 == Upgrade Notice ==
+
+= 0.5.1-alpha =
+Pre-release alpha. New features: subproperty mapping, wildcard arrays, loop-over-array execution. Updated build tooling.
 
 = 0.5.0 =
 Pre-release beta. Requires WordPress 6.9+ for the Abilities API.
