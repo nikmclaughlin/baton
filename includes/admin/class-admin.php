@@ -145,6 +145,9 @@ final class Baton_Admin {
 		echo '<script type="application/json" id="baton-definition-data">';
 		echo wp_json_encode( $definition );
 		echo '</script>';
+		echo '<script type="application/json" id="baton-layout-data">';
+		echo wp_json_encode( Baton_Workflow_CPT::get_layout( (int) $post_id ) );
+		echo '</script>';
 		echo '<script>window.BatonEditor = { editorMode: ' . wp_json_encode( apply_filters( 'baton_editor_mode', 'node' ) === 'stack' ? 'stack' : 'node' ) . ' };</script>';
 
 		echo '<form method="post" id="baton-form">';
@@ -170,6 +173,7 @@ final class Baton_Admin {
 		echo '<div id="baton-editor-root"></div>';
 
 		echo '<input type="hidden" name="workflow_definition" id="workflow_definition" value="' . esc_attr( (string) wp_json_encode( $definition ) ) . '" />';
+		echo '<input type="hidden" name="baton_editor_layout" id="baton_editor_layout" value="{}" />';
 
 		echo '<p class="submit">';
 		submit_button( __( 'Save Workflow', 'baton' ), 'primary', 'submit', false );
@@ -313,6 +317,12 @@ final class Baton_Admin {
 		}
 
 		Baton_Workflow_CPT::save_definition( (int) $post_id, $definition );
+
+		// Persist node-canvas layout (Phase 1), pruned to definition ids.
+		$layout_raw = isset( $_POST['baton_editor_layout'] ) ? wp_unslash( $_POST['baton_editor_layout'] ) : '{}'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$layout     = Baton_Workflow_CPT::sanitize_layout( json_decode( (string) $layout_raw, true ) );
+		$layout     = Baton_Workflow_CPT::prune_layout( $layout, $definition );
+		Baton_Workflow_CPT::save_layout( (int) $post_id, $layout );
 
 		if ( 'publish' === get_post_status( $post_id ) ) {
 			Baton_Workflow_Abilities::register_workflow_ability( (int) $post_id );

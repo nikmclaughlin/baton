@@ -36,12 +36,22 @@ export function groupAbilitiesByCategory( abilities, otherLabel = 'Other' ) {
 
 export function defaultStep() {
 	return {
+		id: defaultStepId(),
 		ability: '',
 		input: {},
 		use_previous_output: false,
 		input_mappings: [],
 		loop: null,
 	};
+}
+
+/**
+ * Generate a stable step id for new steps (node identity for layout).
+ *
+ * @return {string} e.g. 's-k3v9q2mx'.
+ */
+export function defaultStepId() {
+	return `s-${ Math.random().toString( 36 ).slice( 2, 10 ) }`;
 }
 
 export function stringifyJson( value ) {
@@ -185,6 +195,12 @@ export function definitionFromSteps( steps, initialInput = {} ) {
 				use_previous_output: !! step.use_previous_output,
 				input_mappings: step.input_mappings || [],
 			};
+			// Stable node id for layout persistence (runner ignores it).
+			const stableId =
+				typeof step.id === 'string' ? step.id.trim().toLowerCase() : '';
+			if ( /^[a-z0-9_-]{1,40}$/.test( stableId ) ) {
+				s.id = stableId;
+			}
 			if ( step.loop && step.loop.field ) {
 				s.loop = { field: step.loop.field };
 			}

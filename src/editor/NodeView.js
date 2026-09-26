@@ -1,17 +1,20 @@
 /**
- * Node-view spike: renders the current definition as a read-only canvas.
- * Positions and styling are spike-grade; layout persistence lands in Phase 1.
+ * Node-canvas view: renders the definition as an interactive React Flow
+ * canvas. Editing the chain (add/remove/reorder/edit steps) stays in the
+ * Stack view for Phases 1–3; here nodes are draggable and positions sync
+ * into the #baton_editor_layout hidden field for persistence.
  */
-import { useMemo } from '@wordpress/element';
+import { useCallback, useMemo } from '@wordpress/element';
 import {
 	Background,
 	Controls,
 	Handle,
 	Position,
 	ReactFlow,
+	useNodesState,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { getAbility } from './utils';
+import { graphToLayout, resolveLayout, stepsToGraph } from './graph';
 
 function InputNode() {
 	return (
@@ -39,44 +42,26 @@ const nodeTypes = {
 	abilityNode: AbilityNode,
 };
 
-export default function NodeView( { abilities, steps } ) {
-	const nodes = useMemo( () => {
-		const list = [
-			{
-				id: 'input',
-				type: 'inputNode',
-				position: { x: 40, y: 20 },
-				data: {},
-			},
-		];
-		steps.forEach( ( step, index ) => {
-			const ability = getAbility( abilities, step.ability );
-			list.push( {
-				id: `step-${ index }`,
-				type: 'abilityNode',
-				position: { x: 40, y: 120 * ( index + 1 ) },
-				data: {
-					label: ability?.label || `Step ${ index + 1 }`,
-					slug: step.ability,
-				},
-			} );
-		} );
-		return list;
-	}, [ abilities, steps ] );
+export default function NodeView( { abilities, steps, savedLayout } ) {
+	const { nodes: initialNodes, edges } = useMemo(
+		() =>
+			stepsToGraph(
+				steps,
+				abilities,
+				resolveLayout( steps, savedLayout )
+			),
+		[ steps, abilities, savedLayout ]
+	);
 
-	const edges = useMemo( () => {
-		const list = [];
-		steps.forEach( ( _, index ) => {
-			const source = index === 0 ? 'input' : `step-${ index - 1 }`;
-			list.push( {
-				id: `edge-${ source }-step-${ index }`,
-				source,
-				target: `step-${ index }`,
-				type: 'smoothstep',
-			} );
-		} );
-		return list;
-	}, [ steps ] );
+	const [ nodes, , onNodesChange ] = useNodesState( initialNodes );
+
+	const onNodeDragStop = useCallback( () => {
+		const hidden = document.getElementById( 'baton_editor_layout' );
+		if ( ! hidden ) {
+			return;
+		}
+		hidden.value = JSON.stringify( graphToLayout( nodes ) );
+	}, [ nodes ] );
 
 	return (
 		<div className="baton-editor__node-canvas">
@@ -84,6 +69,8 @@ export default function NodeView( { abilities, steps } ) {
 				nodes={ nodes }
 				edges={ edges }
 				nodeTypes={ nodeTypes }
+				onNodesChange={ onNodesChange }
+				onNodeDragStop={ onNodeDragStop }
 				fitView
 				nodesConnectable={ false }
 				edgesFocusable={ false }

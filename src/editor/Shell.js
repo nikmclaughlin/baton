@@ -15,6 +15,7 @@ import { defaultStep, definitionFromSteps } from './utils';
 export default function EditorShell( {
 	abilities,
 	initialDefinition,
+	initialLayout,
 	initialMode = 'node',
 } ) {
 	const [ view, setView ] = useState(
@@ -26,6 +27,8 @@ export default function EditorShell( {
 			? s.map( ( step ) => ( { ...step } ) )
 			: [ defaultStep() ];
 	} );
+	const savedLayout =
+		initialLayout && typeof initialLayout === 'object' ? initialLayout : {};
 
 	const syncHiddenField = useCallback( () => {
 		const hidden = document.getElementById( 'workflow_definition' );
@@ -70,7 +73,11 @@ export default function EditorShell( {
 			</div>
 
 			{ 'node' === view ? (
-				<NodeView abilities={ abilities } steps={ steps } />
+				<NodeView
+					abilities={ abilities }
+					steps={ steps }
+					savedLayout={ savedLayout }
+				/>
 			) : (
 				<WorkflowEditor
 					abilities={ abilities }
