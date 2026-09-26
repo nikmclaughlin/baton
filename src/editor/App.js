@@ -293,6 +293,8 @@ export default function WorkflowEditor( {
 	initialDefinition,
 	steps: controlledSteps,
 	setSteps: setControlledSteps,
+	saving,
+	onSave,
 } ) {
 	const [ internalSteps, setInternalSteps ] = useState( () => {
 		const s = initialDefinition?.steps;
@@ -457,6 +459,8 @@ export default function WorkflowEditor( {
 					abilities={ abilities }
 					onClose={ () => setActiveFilter( null ) }
 					onChangeMappings={ changeMappings }
+					onSave={ onSave }
+					saving={ saving }
 				/>
 			) }
 
@@ -468,6 +472,8 @@ export default function WorkflowEditor( {
 				onInputChange={ ( stepIndex, input ) =>
 					updateStep( stepIndex, { input } )
 				}
+				onSave={ onSave }
+				saving={ saving }
 			/>
 		</div>
 	);

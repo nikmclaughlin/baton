@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Plugin Name:       Baton
  * Description:       Create and run admin workflows from registered WordPress Abilities API abilities.

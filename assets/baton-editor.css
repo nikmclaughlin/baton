@@ -582,3 +582,18 @@
 }
 
 
+
+/* AJAX save feedback (rendered by the editor shell) */
+.baton-snackbar-zone {
+	position: fixed;
+	bottom: 32px;
+	left: 50%;
+	transform: translateX( -50% );
+	z-index: 100000;
+	width: fit-content;
+	max-width: 640px;
+}
+
+.baton-snackbar--error {
+	background: #b32d2e;
+}

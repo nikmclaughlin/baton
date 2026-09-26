@@ -91,6 +91,8 @@ export function DataFilterPanel( {
 	abilities,
 	onClose,
 	onChangeMappings,
+	onSave,
+	saving,
 } ) {
 	const downstream = steps[ stepIndex ];
 	const downstreamAbility = getAbility( abilities, downstream?.ability );
@@ -107,6 +109,25 @@ export function DataFilterPanel( {
 	} );
 
 	const mappings = draftMappings;
+
+	const savedMappings = useMemo(
+		() =>
+			sanitizeMappingsForSave(
+				downstream?.input_mappings,
+				downstreamAbility
+			),
+		[ downstream?.input_mappings, downstreamAbility ]
+	);
+	const isDirty = useMemo( () => {
+		if ( draftMappings.length !== savedMappings.length ) {
+			return true;
+		}
+		return draftMappings.some(
+			( row, i ) =>
+				row.path !== savedMappings[ i ]?.path ||
+				row.target !== savedMappings[ i ]?.target
+		);
+	}, [ draftMappings, savedMappings ] );
 
 	const sourceOptions = useMemo( () => {
 		if ( stepIndex === 0 || ! upstreamAbility?.source_selectable ) {
@@ -159,6 +180,16 @@ export function DataFilterPanel( {
 			sanitizeMappingsForSave( draftMappings, downstreamAbility )
 		);
 		onClose();
+	};
+
+	const handleModalSave = () => {
+		onChangeMappings(
+			stepIndex,
+			sanitizeMappingsForSave( draftMappings, downstreamAbility )
+		);
+		if ( typeof onSave === 'function' ) {
+			onSave( onClose );
+		}
 	};
 
 	return (
@@ -288,9 +319,19 @@ export function DataFilterPanel( {
 				</Button>
 			) }
 			<div className="baton-modal-actions">
-				<Button variant="primary" onClick={ handleDone }>
-					{ __( 'Done', 'baton' ) }
-				</Button>
+				{ isDirty ? (
+					<Button
+						variant="primary"
+						isBusy={ !! saving }
+						onClick={ handleModalSave }
+					>
+						{ __( 'Save', 'baton' ) }
+					</Button>
+				) : (
+					<Button variant="primary" onClick={ handleDone }>
+						{ __( 'Done', 'baton' ) }
+					</Button>
+				) }
 			</div>
 		</Modal>
 	);
@@ -394,6 +435,8 @@ export function IoDetailPanel( {
 	steps,
 	onClose,
 	onInputChange,
+	onSave,
+	saving,
 } ) {
 	const step = panel ? steps[ panel.stepIndex ] : null;
 	const ability = step ? getAbility( abilities, step.ability ) : null;
@@ -458,6 +501,9 @@ export function IoDetailPanel( {
 		setJsonError( null );
 		onClose();
 	};
+
+	const isDirty =
+		isInput && inputDraft !== formatStepInput( step?.input, ability );
 
 	return (
 		<Modal
@@ -530,9 +576,25 @@ export function IoDetailPanel( {
 				</div>
 			) }
 			<div className="baton-modal-actions">
-				<Button variant="primary" onClick={ handleClose }>
-					{ __( 'Close', 'baton' ) }
-				</Button>
+				{ isDirty ? (
+					<Button
+						variant="primary"
+						disabled={ !! jsonError }
+						isBusy={ !! saving }
+						onClick={ () => {
+							setJsonError( null );
+							if ( typeof onSave === 'function' ) {
+								onSave( handleClose );
+							}
+						} }
+					>
+						{ __( 'Save', 'baton' ) }
+					</Button>
+				) : (
+					<Button variant="primary" onClick={ handleClose }>
+						{ __( 'Close', 'baton' ) }
+					</Button>
+				) }
 			</div>
 		</Modal>
 	);

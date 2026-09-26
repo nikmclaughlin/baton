@@ -177,7 +177,14 @@ const edgeTypes = {
 	mappingEdge: MappingEdge,
 };
 
-function InitialInputPanel( { open, initialInput, onClose, onChange } ) {
+function InitialInputPanel( {
+	open,
+	initialInput,
+	onClose,
+	onChange,
+	onSave,
+	saving,
+} ) {
 	const [ draft, setDraft ] = useState( () =>
 		stringifyJson( initialInput || {} )
 	);
@@ -238,9 +245,25 @@ function InitialInputPanel( { open, initialInput, onClose, onChange } ) {
 				</Notice>
 			) }
 			<div className="baton-modal-actions">
-				<Button variant="primary" onClick={ onClose }>
-					{ __( 'Done', 'baton' ) }
-				</Button>
+				{ draft !== stringifyJson( initialInput || {} ) ? (
+					<Button
+						variant="primary"
+						disabled={ !! jsonError }
+						isBusy={ !! saving }
+						onClick={ () => {
+							setJsonError( null );
+							if ( typeof onSave === 'function' ) {
+								onSave( onClose );
+							}
+						} }
+					>
+						{ __( 'Save', 'baton' ) }
+					</Button>
+				) : (
+					<Button variant="primary" onClick={ onClose }>
+						{ __( 'Done', 'baton' ) }
+					</Button>
+				) }
 			</div>
 		</Modal>
 	);
@@ -271,6 +294,8 @@ export default function NodeView( {
 	onInsertStep,
 	onRemoveStep,
 	onInitialInputChange,
+	onSave,
+	saving,
 } ) {
 	const [ positions, setPositions ] = useState( () =>
 		resolveLayout( steps, savedLayout )
@@ -441,6 +466,8 @@ export default function NodeView( {
 					onChangeMappings={ ( stepIndex, mappings ) =>
 						onUpdateStep( stepIndex, { input_mappings: mappings } )
 					}
+					onSave={ onSave }
+					saving={ saving }
 				/>
 			) }
 
@@ -452,6 +479,8 @@ export default function NodeView( {
 				onInputChange={ ( stepIndex, input ) =>
 					onUpdateStep( stepIndex, { input } )
 				}
+				onSave={ onSave }
+				saving={ saving }
 			/>
 
 			<InitialInputPanel
@@ -459,6 +488,8 @@ export default function NodeView( {
 				initialInput={ initialInput }
 				onClose={ () => setInputPanelOpen( false ) }
 				onChange={ onInitialInputChange }
+				onSave={ onSave }
+				saving={ saving }
 			/>
 		</div>
 	);
