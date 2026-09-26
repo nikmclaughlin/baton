@@ -4,7 +4,7 @@
  * Stack view for Phases 1–3; here nodes are draggable and positions sync
  * into the #baton_editor_layout hidden field for persistence.
  */
-import { useCallback, useMemo } from '@wordpress/element';
+import { useCallback, useEffect, useMemo, useRef } from '@wordpress/element';
 import {
 	Background,
 	Controls,
@@ -54,14 +54,59 @@ export default function NodeView( { abilities, steps, savedLayout } ) {
 	);
 
 	const [ nodes, , onNodesChange ] = useNodesState( initialNodes );
+	const nodesRef = useRef( nodes );
+	nodesRef.current = nodes;
 
-	const onNodeDragStop = useCallback( () => {
-		const hidden = document.getElementById( 'baton_editor_layout' );
-		if ( ! hidden ) {
-			return;
+	const hiddenLayoutRef = useRef( null );
+
+	/**
+	 * Write the current layout into the hidden field.
+	 *
+	 * @param {Object} [layoutOverride] Layout map to serialize instead of
+	 *                                  the current nodes' positions (used on drag stop where React Flow's
+	 *                                  args are fresher than state).
+	 */
+	const syncLayoutField = useCallback( ( layoutOverride ) => {
+		if ( ! hiddenLayoutRef.current ) {
+			hiddenLayoutRef.current = document.getElementById(
+				'baton_editor_layout'
+			);
 		}
-		hidden.value = JSON.stringify( graphToLayout( nodes ) );
-	}, [ nodes ] );
+		if ( hiddenLayoutRef.current ) {
+			hiddenLayoutRef.current.value = JSON.stringify(
+				layoutOverride || graphToLayout( nodesRef.current )
+			);
+		}
+	}, [] );
+
+	/**
+	 * Persist final positions on drag stop. Uses React Flow's callback
+	 * args (fresher than state) merged with the rest of the layout.
+	 */
+	const onNodeDragStop = useCallback(
+		( event, node, draggedNodes ) => {
+			const positions = graphToLayout( nodesRef.current );
+			( draggedNodes || [ node ] ).forEach( ( dragged ) => {
+				if (
+					dragged?.position &&
+					Number.isFinite( dragged.position.x )
+				) {
+					positions[ dragged.id ] = {
+						x: Math.round( dragged.position.x * 100 ) / 100,
+						y: Math.round( dragged.position.y * 100 ) / 100,
+					};
+				}
+			} );
+			syncLayoutField( positions );
+		},
+		[ syncLayoutField ]
+	);
+
+	// Keep the hidden field current even when saving without dragging, so
+	// a save can't wipe previously stored positions with an empty layout.
+	useEffect( () => {
+		syncLayoutField();
+	}, [ nodes, syncLayoutField ] );
 
 	return (
 		<div className="baton-editor__node-canvas">

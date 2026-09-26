@@ -62,28 +62,42 @@ export function autoLayout( stepCount ) {
  * Resolve node positions: saved layout for ids present in the definition,
  * auto-layout fallback for the rest.
  *
+ * Valid saved ids mirror PHP prune_layout(): 'input', each step's stable
+ * id, and each step's 'step-N' index fallback (pre-stable-id definitions
+ * and duplicate-id collision fallbacks both keep working).
+ *
  * @param {object[]} steps         Definition steps.
  * @param {Object}   [savedLayout] Saved _baton_editor_layout map.
  * @return {Object} Map of node id to { x, y }.
  */
 export function resolveLayout( steps, savedLayout ) {
-	const fallback = autoLayout( steps.length );
-	const positions = {};
-	Object.keys( fallback ).forEach( ( id ) => {
-		positions[ id ] = fallback[ id ];
-	} );
-	if ( savedLayout && typeof savedLayout === 'object' ) {
-		Object.keys( savedLayout ).forEach( ( id ) => {
-			if (
-				Object.prototype.hasOwnProperty.call( positions, id ) &&
-				savedLayout[ id ] &&
-				Number.isFinite( savedLayout[ id ].x ) &&
-				Number.isFinite( savedLayout[ id ].y )
-			) {
-				positions[ id ] = savedLayout[ id ];
-			}
-		} );
+	const positions = autoLayout( steps.length );
+
+	if ( ! savedLayout || typeof savedLayout !== 'object' ) {
+		return positions;
 	}
+
+	const validIds = new Set( [ 'input' ] );
+	steps.forEach( ( step, index ) => {
+		const stable = sanitizeStepId( step?.id );
+		if ( stable ) {
+			validIds.add( stable );
+		}
+		validIds.add( `step-${ index }` );
+	} );
+
+	Object.keys( savedLayout ).forEach( ( id ) => {
+		const position = savedLayout[ id ];
+		if (
+			validIds.has( id ) &&
+			position &&
+			Number.isFinite( position.x ) &&
+			Number.isFinite( position.y )
+		) {
+			positions[ id ] = { x: position.x, y: position.y };
+		}
+	} );
+
 	return positions;
 }
 
