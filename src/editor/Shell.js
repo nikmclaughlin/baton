@@ -84,7 +84,9 @@ export default function EditorShell( {
 					initialInput={ initialInput }
 					onUpdateStep={ ( index, step ) =>
 						setSteps( ( prev ) =>
-							prev.map( ( s, i ) => ( i === index ? step : s ) )
+							prev.map( ( s, i ) =>
+								i === index ? { ...s, ...step } : s
+							)
 						)
 					}
 					onAddStep={ () =>
