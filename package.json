@@ -20,6 +20,7 @@
   "dependencies": {
     "@wordpress/components": "^39.0.0",
     "@wordpress/element": "^8.5.0",
-    "@wordpress/i18n": "^6.26.0"
+    "@wordpress/i18n": "^6.26.0",
+    "@xyflow/react": "^12.12.0"
   }
 }

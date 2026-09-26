@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from '@wordpress/element';
+import { useEffect, useMemo, useState } from '@wordpress/element';
 import {
 	Button,
 	Card,
@@ -18,7 +18,6 @@ import {
 	formatStepInput,
 	getAbility,
 	parseStepInput,
-	definitionFromSteps,
 	indentNestedLabel,
 	mappingRowLabel,
 	sanitizeMappingsForSave,
@@ -799,36 +798,22 @@ function StepCard( {
 	);
 }
 
-export default function WorkflowEditor( { abilities, initialDefinition } ) {
-	const [ steps, setSteps ] = useState( () => {
+export default function WorkflowEditor( {
+	abilities,
+	initialDefinition,
+	steps: controlledSteps,
+	setSteps: setControlledSteps,
+} ) {
+	const [ internalSteps, setInternalSteps ] = useState( () => {
 		const s = initialDefinition?.steps;
 		return s?.length
 			? s.map( ( step ) => ( { ...step } ) )
 			: [ defaultStep() ];
 	} );
+	const steps = controlledSteps ?? internalSteps;
+	const setSteps = setControlledSteps ?? setInternalSteps;
 	const [ activeFilter, setActiveFilter ] = useState( null );
 	const [ ioPanel, setIoPanel ] = useState( null );
-
-	const syncHiddenField = useCallback( () => {
-		const hidden = document.getElementById( 'workflow_definition' );
-		if ( ! hidden ) {
-			return;
-		}
-		const initial =
-			initialDefinition?.initial_input &&
-			typeof initialDefinition.initial_input === 'object'
-				? initialDefinition.initial_input
-				: {};
-		hidden.value = JSON.stringify( definitionFromSteps( steps, initial ) );
-	}, [ steps, initialDefinition ] );
-
-	useEffect( () => {
-		syncHiddenField();
-		window.BatonEditorSync = syncHiddenField;
-		return () => {
-			delete window.BatonEditorSync;
-		};
-	}, [ syncHiddenField ] );
 
 	const updateStep = ( index, patch ) => {
 		setSteps( ( prev ) =>

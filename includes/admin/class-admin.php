@@ -145,6 +145,7 @@ final class Baton_Admin {
 		echo '<script type="application/json" id="baton-definition-data">';
 		echo wp_json_encode( $definition );
 		echo '</script>';
+		echo '<script>window.BatonEditor = { editorMode: ' . wp_json_encode( apply_filters( 'baton_editor_mode', 'node' ) === 'stack' ? 'stack' : 'node' ) . ' };</script>';
 
 		echo '<form method="post" id="baton-form">';
 		wp_nonce_field( self::NONCE_ACTION, 'baton_nonce' );
@@ -383,6 +384,14 @@ final class Baton_Admin {
 			array( 'baton-admin' ),
 			BATON_VERSION
 		);
+		// Built editor CSS (wp-scripts emits style-index.css; includes the
+		// React Flow stylesheet). Enqueued only on edit/new screens.
+		wp_register_style(
+			'baton-editor-build',
+			BATON_URL . 'build/style-index.css',
+			array( 'baton-editor' ),
+			BATON_VERSION
+		);
 
 		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : 'list'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
@@ -423,6 +432,7 @@ final class Baton_Admin {
 
 		wp_enqueue_style( 'baton-admin' );
 		wp_enqueue_style( 'baton-editor' );
+		wp_enqueue_style( 'baton-editor-build' );
 
 		if ( function_exists( 'wp_set_script_translations' ) ) {
 			wp_set_script_translations( 'baton-editor', 'baton', BATON_DIR . 'languages' );

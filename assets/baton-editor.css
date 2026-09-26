@@ -403,3 +403,45 @@
 	color: #646970;
 	font-style: italic;
 }
+
+/* ---- Node view (Phase 0 spike) ---- */
+
+.baton-editor__toolbar--view {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: 12px;
+}
+
+.baton-editor__view-toggle {
+	max-width: 260px;
+}
+
+.baton-editor__node-canvas {
+	height: 560px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #f0f0f1;
+}
+
+.baton-node {
+	padding: 10px 14px;
+	border: 1px solid #2271b1;
+	border-radius: 4px;
+	background: #fff;
+	font-size: 13px;
+	min-width: 160px;
+	text-align: left;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.baton-node code {
+	display: block;
+	margin-top: 4px;
+	color: #50575e;
+	font-size: 11px;
+}
+
+.baton-node--input {
+	border-color: #8c8f94;
+}
+
