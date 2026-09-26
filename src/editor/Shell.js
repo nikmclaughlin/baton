@@ -1,6 +1,7 @@
 /**
- * Editor shell: owns the definition state (steps) and the node|stack view
- * toggle. Both views render from the same state, so switching is lossless.
+ * Editor shell: owns the definition state (steps + initial_input) and the
+ * node|stack view toggle. Both views render from the same state, so
+ * switching is lossless.
  */
 import { useCallback, useEffect, useState } from '@wordpress/element';
 import {
@@ -27,6 +28,12 @@ export default function EditorShell( {
 			? s.map( ( step ) => ( { ...step } ) )
 			: [ defaultStep() ];
 	} );
+	const [ initialInput, setInitialInput ] = useState(
+		initialDefinition?.initial_input &&
+			typeof initialDefinition.initial_input === 'object'
+			? initialDefinition.initial_input
+			: {}
+	);
 	const savedLayout =
 		initialLayout && typeof initialLayout === 'object' ? initialLayout : {};
 
@@ -35,13 +42,10 @@ export default function EditorShell( {
 		if ( ! hidden ) {
 			return;
 		}
-		const initial =
-			initialDefinition?.initial_input &&
-			typeof initialDefinition.initial_input === 'object'
-				? initialDefinition.initial_input
-				: {};
-		hidden.value = JSON.stringify( definitionFromSteps( steps, initial ) );
-	}, [ steps, initialDefinition ] );
+		hidden.value = JSON.stringify(
+			definitionFromSteps( steps, initialInput )
+		);
+	}, [ steps, initialInput ] );
 
 	useEffect( () => {
 		syncHiddenField();
@@ -77,6 +81,31 @@ export default function EditorShell( {
 					abilities={ abilities }
 					steps={ steps }
 					savedLayout={ savedLayout }
+					initialInput={ initialInput }
+					onUpdateStep={ ( index, step ) =>
+						setSteps( ( prev ) =>
+							prev.map( ( s, i ) => ( i === index ? step : s ) )
+						)
+					}
+					onAddStep={ () =>
+						setSteps( ( prev ) => [ ...prev, defaultStep() ] )
+					}
+					onInsertStep={ ( index ) =>
+						setSteps( ( prev ) => [
+							...prev.slice( 0, index ),
+							defaultStep(),
+							...prev.slice( index ),
+						] )
+					}
+					onRemoveStep={ ( index ) =>
+						setSteps( ( prev ) => {
+							if ( prev.length <= 1 ) {
+								return [ defaultStep() ];
+							}
+							return prev.filter( ( _, i ) => i !== index );
+						} )
+					}
+					onInitialInputChange={ setInitialInput }
 				/>
 			) : (
 				<WorkflowEditor

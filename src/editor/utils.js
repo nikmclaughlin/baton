@@ -208,3 +208,28 @@ export function definitionFromSteps( steps, initialInput = {} ) {
 		} ),
 	};
 }
+
+/**
+ * Replace a step's ability, resetting run-time config the way the stack
+ * editor does: static input back to the ability example (or empty), data
+ * filter mappings cleared, loop removed.
+ *
+ * @param {Object}   step      Current step object.
+ * @param {string}   slug      Ability slug ('' to clear).
+ * @param {Object[]} abilities Ability catalog.
+ * @return {Object} New step object.
+ */
+export function applyAbilityChange( step, slug, abilities ) {
+	const ability = getAbility( abilities, slug );
+	let input = {};
+	if ( ability ) {
+		input = ability.example_input ?? ( ability.input_is_scalar ? '' : {} );
+	}
+	return {
+		...step,
+		ability: slug,
+		input,
+		input_mappings: [],
+		loop: null,
+	};
+}

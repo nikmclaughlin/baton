@@ -140,13 +140,15 @@ export function stepsToGraph( steps, abilities, layout ) {
 			data: {
 				label: ability?.label || `Step ${ index + 1 }`,
 				slug: step.ability,
+				stepIndex: index,
 			},
 		} );
 		edges.push( {
 			id: `edge-${ sourceId }-to-${ nodeId }`,
 			source: sourceId,
 			target: nodeId,
-			type: 'smoothstep',
+			type: 'mappingEdge',
+			data: { downstreamIndex: index },
 		} );
 	} );
 

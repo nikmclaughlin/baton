@@ -450,3 +450,135 @@
 	border-color: #8c8f94;
 }
 
+/* ---- Phase 2: canvas editing ---- */
+
+.baton-editor__node-view {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.baton-editor__drag-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 6px 12px;
+	border: 1px dashed #a7aaad;
+	border-radius: 4px;
+	background: #fff;
+	color: #50575e;
+	cursor: grab;
+	font-size: 12px;
+	user-select: none;
+}
+
+.baton-editor__drag-chip:active {
+	cursor: grabbing;
+}
+
+.baton-editor__drag-chip:hover {
+	border-color: #2271b1;
+	color: #2271b1;
+}
+
+.baton-node__header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-bottom: 8px;
+	padding-bottom: 6px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.baton-node__kind {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #787c82;
+}
+
+.baton-node__remove {
+	border: 0;
+	background: none;
+	color: #d63638;
+	cursor: pointer;
+	font-size: 11px;
+	padding: 0;
+}
+
+.baton-node__remove:hover {
+	text-decoration: underline;
+}
+
+.baton-node__body {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	margin-top: 6px;
+	min-width: 260px;
+}
+
+.baton-node__body .baton-ability-field,
+.baton-node__body .baton-ability-select {
+	width: 100%;
+}
+
+.baton-node__edit-input {
+	border: 0;
+	background: none;
+	color: #2271b1;
+	cursor: pointer;
+	font-size: 11px;
+	padding: 0;
+	margin-top: 4px;
+	text-decoration: underline;
+}
+
+.baton-edge-chip {
+	position: absolute;
+	pointer-events: all;
+	border: 1px solid #2271b1;
+	border-radius: 12px;
+	background: #fff;
+	color: #2271b1;
+	padding: 2px 10px;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.baton-edge-chip--empty {
+	border-style: dashed;
+	border-color: #a7aaad;
+	color: #787c82;
+}
+
+.baton-edge-chip:hover {
+	background: #f0f6fc;
+}
+
+.baton-node__body .baton-io-row {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.baton-node__body .baton-io-chip {
+	width: 100%;
+}
+
+.baton-node__body .baton-io-chip:hover {
+	border-color: #2271b1;
+}
+
+.baton-node__body .baton-loop-panel {
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	padding: 8px;
+	background: #f6f7f7;
+}
+
+.baton-node__body .baton-loop-panel__body {
+	padding-top: 6px;
+}
+
+
