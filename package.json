@@ -6,7 +6,7 @@
     "build": "wp-scripts build",
     "start": "wp-scripts start",
     "lint:js": "wp-scripts lint-js src/",
-    "lint:css": "wp-scripts lint-css",
+    "lint:css": "wp-scripts lint-style",
     "check": "npm run check:static",
     "check:static": "composer check && npm run lint:js",
     "release:org": "bash scripts/build-wordpress-org-release.sh",
