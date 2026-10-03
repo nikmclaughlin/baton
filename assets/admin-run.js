@@ -95,31 +95,27 @@
 				escapeHtml( strings.running || 'Running…' ) +
 				'</p>';
 
-			const body = new FormData();
-			body.append( 'action', 'baton_run' );
-			body.append( 'nonce', cfg.nonce );
-			body.append(
-				'workflow_id',
-				btn.getAttribute( 'data-workflow-id' )
-			);
-			body.append(
-				'initial_input',
-				initialInput ? initialInput.value : '{}'
-			);
+			const payload = {
+				initial_input: initialInput ? initialInput.value : '{}',
+			};
 
-			fetch( cfg.ajaxUrl, {
+			fetch( cfg.runUrl, {
 				method: 'POST',
-				body,
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': cfg.nonce,
+				},
+				body: JSON.stringify( payload ),
 				credentials: 'same-origin',
 			} )
 				.then( function ( response ) {
 					return response.json();
 				} )
-				.then( function ( data ) {
+				.then( function ( result ) {
 					btn.disabled = false;
 					btn.textContent =
 						btn.getAttribute( 'data-label' ) || 'Run Workflow';
-					RunPanel.renderResults( data );
+					RunPanel.renderResults( result );
 				} )
 				.catch( function ( err ) {
 					btn.disabled = false;
@@ -132,16 +128,16 @@
 				} );
 		},
 
-		renderResults( data ) {
+		renderResults( result ) {
 			const results = document.getElementById( 'aw-run-results' );
 			if ( ! results ) {
 				return;
 			}
 
-			const report = data.data || data;
+			const report = result && typeof result === 'object' ? result : {};
 			let html = '';
 
-			if ( data.success ) {
+			if ( report.success ) {
 				html +=
 					'<div class="notice notice-success"><p>' +
 					escapeHtml(
@@ -152,7 +148,10 @@
 				html +=
 					'<div class="notice notice-error"><p>' +
 					escapeHtml(
-						report.error || strings.runFailed || 'Workflow failed.'
+						report.error ||
+							report.message ||
+							strings.runFailed ||
+							'Workflow failed.'
 					) +
 					'</p></div>';
 			}

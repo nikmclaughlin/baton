@@ -5,7 +5,7 @@
  *
  * Also owns workflow saving: modal "Save" buttons and the bottom form
  * submit both funnel into saveWorkflow(), which syncs the hidden fields,
- * POSTs to the AJAX endpoint, and shows feedback without a page reload.
+ * POSTs to the REST endpoint, and shows feedback without a page reload.
  */
 import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
 import {
@@ -72,9 +72,9 @@ export default function EditorShell( {
 	}, [ syncHiddenField ] );
 
 	/**
-	 * Save the workflow via AJAX. When a modal is committing changes, pass
-	 * closeModal; it runs after the modal's state update has flushed, so the
-	 * serialized definition includes it.
+	 * Save the workflow via the REST endpoint. When a modal is committing
+	 * changes, pass closeModal; it runs after the modal's state update has
+	 * flushed, so the serialized definition includes it.
 	 *
 	 * @param {{closeModal?: Function}} [options]
 	 * @return {Promise<boolean>} Resolves true when saved.
@@ -90,9 +90,9 @@ export default function EditorShell( {
 					return;
 				}
 
-				const ajaxUrl = editorConfig.ajaxUrl;
-				const nonce = editorConfig.nonce;
-				if ( ! ajaxUrl || ! nonce ) {
+				const restRoot = editorConfig.restRoot;
+				const restNonce = editorConfig.restNonce;
+				if ( ! restRoot || ! restNonce ) {
 					setSnackbar( {
 						kind: 'error',
 						text: __(
@@ -150,36 +150,43 @@ export default function EditorShell( {
 						? parseInt( workflowIdInput.value, 10 ) || 0
 						: parseInt( editorConfig.postId, 10 ) || 0;
 
-					const body = new window.FormData();
-					body.append( 'action', 'baton_save_workflow' );
-					body.append( 'nonce', nonce );
-					body.append( 'workflow_title', title );
-					body.append( 'workflow_excerpt', excerpt );
-					body.append( 'workflow_definition', definition );
-					body.append( 'baton_editor_layout', layout );
-					body.append( 'workflow_id', String( workflowId ) );
+					const payload = {
+						workflow_title: title,
+						workflow_excerpt: excerpt,
+						// The hidden fields hold serialized JSON; the endpoint
+						// accepts both the string and a decoded object.
+						workflow_definition: definition,
+						baton_editor_layout: layout,
+						workflow_id: workflowId,
+					};
 
 					window
-						.fetch( ajaxUrl, {
+						.fetch( restRoot, {
 							method: 'POST',
-							body,
+							headers: {
+								'Content-Type': 'application/json',
+								'X-WP-Nonce': restNonce,
+							},
+							body: JSON.stringify( payload ),
 							credentials: 'same-origin',
 						} )
-						.then( ( response ) => response.json() )
-						.then( ( result ) => {
+						.then( ( response ) =>
+							response.json().then( ( result ) => ( {
+								ok: response.ok,
+								result,
+							} ) )
+						)
+						.then( ( { ok, result } ) => {
 							finish();
-							if ( result?.success ) {
-								const newId = parseInt(
-									result?.data?.post_id,
-									10
-								);
+							if ( ok ) {
+								const newId = parseInt( result?.post_id, 10 );
 								if ( workflowIdInput && newId > 0 ) {
 									workflowIdInput.value = String( newId );
 								}
 								setSnackbar( {
 									kind: 'success',
 									text:
-										result?.data?.message ||
+										result?.message ||
 										__( 'Workflow saved.', 'baton' ),
 								} );
 								resolve( true );
@@ -187,6 +194,7 @@ export default function EditorShell( {
 								setSnackbar( {
 									kind: 'error',
 									text:
+										result?.message ||
 										result?.data?.message ||
 										__( 'Save failed.', 'baton' ),
 								} );
@@ -204,7 +212,7 @@ export default function EditorShell( {
 				}, 0 );
 			} );
 		},
-		[ editorConfig.ajaxUrl, editorConfig.nonce, editorConfig.postId ]
+		[ editorConfig.restRoot, editorConfig.restNonce, editorConfig.postId ]
 	);
 
 	const finishModalSave = useCallback( ( saved ) => {

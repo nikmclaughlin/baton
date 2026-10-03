@@ -35,6 +35,7 @@ require_once BATON_DIR . 'includes/class-workflow-runner.php';
 require_once BATON_DIR . 'includes/class-workflow-abilities.php';
 require_once BATON_DIR . 'includes/admin/class-workflow-list-table.php';
 require_once BATON_DIR . 'includes/admin/class-admin.php';
+require_once BATON_DIR . 'includes/class-rest-controller.php';
 require_once BATON_DIR . 'includes/class-plugin.php';
 
 register_activation_hook( BATON_FILE, array( 'Baton_Plugin', 'activate' ) );
