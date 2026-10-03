@@ -1,6 +1,6 @@
 # Baton — agent guide
 
-Baton is a WordPress plugin (v0.4.0) that chains [Abilities API](https://developer.wordpress.org/apis/abilities/) abilities into saved workflows. Admins compose workflows in **Tools → Baton**, run them from the admin, and each published workflow is also registered as its own ability (`baton/workflow-{post_id}`) for nesting and external tooling.
+Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpress.org/apis/abilities/) abilities into saved workflows. Admins compose workflows in **Tools → Baton** in a node canvas or a stack view, run them from the admin, and each published workflow is also registered as its own ability (`baton/workflow-{post_id}`) for nesting and external tooling.
 
 ## Requirements
 
@@ -14,10 +14,10 @@ Baton is a WordPress plugin (v0.4.0) that chains [Abilities API](https://develop
 
 | Concept | Implementation |
 |--------|----------------|
-| Workflow storage | CPT `baton_workflow` (no public UI); definition in post meta `_baton_workflow_definition` |
+| Workflow storage | CPT `baton_workflow` (no public UI); definition in meta `_baton_workflow_definition`, editor layout in `_baton_editor_layout` |
 | Step execution | `Baton_Workflow_Runner` — sequential steps via `WP_Ability::execute()` |
-| Data between steps | **Data filters** (`input_mappings`) on connectors between ability cards; dot-path extraction via `Baton_Input_Mapper` |
-| Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` |
+| Data between steps | **Data filters** (`input_mappings`) on edges between nodes; dot-path extraction via `Baton_Input_Mapper` |
+| Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` at `wp_abilities_api_init` only (see WP 6.9 note below) |
 | Nested workflows | Runner passes a `workflow_stack` and rejects cycles |
 | Admin catalog | `Baton_Ability_Catalog` + `Baton_Schema_Paths` expose schemas, I/O summaries, and mappable paths to JS |
 
@@ -60,19 +60,30 @@ flowchart TD
 
 Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`).
 
+### WP 6.9 ability-registration note (important)
+
+`wp_register_ability()` **only works while `wp_abilities_api_init` is firing** — outside that action it is a `_doing_it_wrong` no-op (verified in WP 6.9 core: `doing_action( 'wp_abilities_api_init' )` gate). Consequences:
+
+- `Baton_Workflow_Abilities::register_workflow_ability()` (called at save time from `persist_workflow()` and the `save_post` hook) is intentionally **deferred-ish**: under 6.9 the new `baton/workflow-{id}` ability only appears after the **next request's** registry init, not immediately after save.
+- Tests touching workflow saves must expect these notices via `$this->setExpectedIncorrectUsage( 'wp_register_ability' )` / `'WP_Abilities_Registry::unregister'` — see `tests/php/Test_Ajax_Save_Workflow.php`.
+- Do not "fix" this by calling `wp_register_ability` directly against the registry mid-request; the gate is core policy.
+
 ### Admin UI
 
 - **List** (`includes/admin/class-workflow-list-table.php`): hero banner (`assets/images/baton-banner.png`), search, `WP_List_Table` (DataViews deferred until core default).
-- **Edit** (`includes/admin/class-admin.php`): title/excerpt form + hidden field `baton_workflow_definition` synced from React; abilities/definition bootstrapped as JSON in `<script type="application/json">` tags.
+- **Edit** (`includes/admin/class-admin.php`): title/excerpt form (`#baton-form`) + hidden fields `workflow_definition` and `baton_editor_layout` synced from React; abilities/definition/layout bootstrapped as JSON in script tags plus a `window.BatonEditor` config (AJAX URL, nonce, post ID, strings).
 - **Run** (`assets/admin-run.js`): AJAX action `baton_run`, displays step-by-step report.
+- **Save paths**: the classic form POST (`handle_save_post`) and the AJAX endpoint `baton_save_workflow` (`ajax_save_workflow`) share `persist_workflow()`, which writes definition + pruned layout and re-registers the ability when published.
+- **AJAX save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `baton_save_workflow` (no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
 
-### Visual editor (Phase 3)
+### Editor views (Phase 0–3)
 
-- **Stack**: `@wordpress/scripts` → `build/index.js` (commit `build/` for installs without npm).
-- **Entry**: `src/index.js` mounts `WorkflowEditor` on `#baton-editor-root`.
-- **UI** (`src/editor/App.js`): vertical **ability step** cards; **data filter** slots between steps (compact “Add data filter” when empty, full card when mappings exist); I/O chips open schema modals; mapping modal drafts rows until **Done**.
-- **Ability picker**: native `<select>` with `<optgroup>` per ability category (`groupAbilitiesByCategory` in `utils.js`) — `@wordpress/components` `SelectControl` does not support optgroups.
-- **Styles**: `assets/baton-editor.css`, list/run styles in `assets/admin.css`.
+The editor ships two synced views behind a `ToggleGroupControl`; `baton_editor_mode` filter sets the default (node):
+
+- **Node canvas** (`src/editor/NodeView.js`): `@xyflow/react`; ability nodes with I/O chips + loop panel, a data-filter connector node, and an `inputNode` for `initial_input`. Drag from the library or drop onto an edge to insert between steps; Remove re-links neighbors; linearity enforced by `isValidConnection` (single chain — DAG is a future, separate design).
+- **Stack view** (`src/editor/App.js`): vertical step cards with data-filter slots; permanent, first-class fallback.
+- **Shell** (`src/editor/Shell.js`): owns saving, modal routing, snackbar, the view toggle, and the hidden-field contract (`BatonEditorSync` serializes definition/layout into the DOM fields from whichever view is active).
+- **Layout**: node positions persist in `_baton_editor_layout`, pruned to definition ids; the hidden field is seeded server-side from stored layout so stack-view saves keep positions.
 
 ## Project layout
 
@@ -80,25 +91,32 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 baton.php                 # Bootstrap, constants, requires
 includes/
   class-plugin.php        # Singleton, abilities gate, activation
-  class-workflow-cpt.php  # CPT + meta get/save/sanitize
+  class-workflow-cpt.php  # CPT + meta get/save/sanitize (definition + layout)
   class-workflow-runner.php
   class-workflow-abilities.php
   class-input-mapper.php  # Dot paths, scalar vs object input
   class-schema-paths.php  # I/O summaries, path catalogs for UI
   class-ability-catalog.php
   admin/
-    class-admin.php       # Menu, edit/list, enqueue, save, AJAX run
+    class-admin.php       # Menu, edit/list, enqueue, save (form + AJAX), run
     class-workflow-list-table.php
 src/
   index.js
-  editor/App.js           # WorkflowEditor UI
+  editor/Shell.js         # Editor shell: saving, modals, view toggle
+  editor/NodeView.js      # Node canvas (@xyflow/react)
+  editor/components.js    # Shared modals (data filter, I/O detail, loop)
+  editor/App.js           # Stack view UI
   editor/utils.js         # Steps, mappings, grouping helpers
 build/                    # Compiled editor (run npm run build after src changes)
 assets/
-  baton-editor.css
-  admin.css
+  baton-editor.css        # Editor + snackbar styles (lint: npm run lint:css)
+  admin.css               # List/run styles
   admin-run.js
   images/baton-banner.png
+tests/
+  bootstrap.php           # wp-env phpunit bootstrap
+  php/                    # Test_* classes (incl. Test_Ajax_Save_Workflow)
+  php/fixtures/           # Registered test abilities for integration tests
 ```
 
 ## Development commands
@@ -109,10 +127,11 @@ npm install
 npm run build                  # after any src/ change
 npm start                      # watch mode while editing UI
 npm run lint:js
+npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php
+npm run test:php               # wp-env phpunit (72 tests)
 ```
 
 PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and match existing `Baton_*` class style.
@@ -125,10 +144,14 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 4. **Select controls** — Use native `<select>` + `<optgroup>` for grouped ability lists; use `SelectControl` only for flat option lists (e.g. mapping source/target).
 5. **Secrets** — Never commit API keys; workflow definitions may contain site-specific static input.
 6. **Tests** — `composer test` via wp-env (`npm run test:php`); manual smoke: save workflow, run from edit screen, nest `baton/workflow-{id}` in another workflow.
+7. **WP 6.9 registration gate** — Save-time ability registration is a `_doing_it_wrong` no-op outside `wp_abilities_api_init` (see the note above); when writing tests around workflow saves, expect those notices and don't assert the ability exists immediately after save.
+8. **CSS** — `npm run lint:css` uses `wp-scripts lint-style`; stylelint fixes are safe (`lint-style --fix`). Dead selectors: verify against `src/`, `includes/`, `admin-run.js`, *and* `build/index.js` before removing (modifiers can be built dynamically).
 
 ## Known gaps / roadmap
 
 - Workflow-level **initial input → step 1 data filter** in the editor (runtime supports `initial_input`; UI exposure is limited).
+- Run-report node badges on the canvas (admin-run.js results mapped onto nodes by step id).
+- Per-browser editor-view preference (node|stack) via localStorage; `baton_editor_mode` filter sets the default only.
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Database/transient integration for persisting workflow output.
