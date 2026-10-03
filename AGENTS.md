@@ -49,15 +49,15 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 ```mermaid
 flowchart TD
   Admin[Tools → Baton] --> Editor[React editor saves meta]
-  Admin --> RunPanel[admin-run.js AJAX]
-  Editor --> Meta["_baton_workflow_definition"]
-  RunPanel --> Runner[Baton_Workflow_Runner]
+  Editor & RunPanel[admin-run.js] --> REST["Baton_Rest_Controller<br/>POST /baton/v1/workflows<br/>POST /baton/v1/workflows/{id}/run"]
+  REST --> SaveHelper[Baton_Admin::save_workflow_post]
+  REST --> Runner[Baton_Workflow_Runner]
+  SaveHelper --> Meta["_baton_workflow_definition"]
   Runner --> Map[Baton_Input_Mapper]
-  Map --> Ability[wp_get_ability → execute]
+  Runner --> Ability[wp_get_ability → execute]
   Meta --> Reg[Baton_Workflow_Abilities]
   Reg --> Ability
 ```
-
 Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`).
 
 ### WP 6.9 ability-registration note (important)
@@ -65,16 +65,17 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 `wp_register_ability()` **only works while `wp_abilities_api_init` is firing** — outside that action it is a `_doing_it_wrong` no-op (verified in WP 6.9 core: `doing_action( 'wp_abilities_api_init' )` gate). Consequences:
 
 - `Baton_Workflow_Abilities::register_workflow_ability()` (called at save time from `persist_workflow()` and the `save_post` hook) is intentionally **deferred-ish**: under 6.9 the new `baton/workflow-{id}` ability only appears after the **next request's** registry init, not immediately after save.
-- Tests touching workflow saves must expect these notices via `$this->setExpectedIncorrectUsage( 'wp_register_ability' )` / `'WP_Abilities_Registry::unregister'` — see `tests/php/Test_Ajax_Save_Workflow.php`.
+- Tests touching workflow saves must expect these notices via `$this->setExpectedIncorrectUsage( 'wp_register_ability' )` / `'WP_Abilities_Registry::unregister'` — see `tests/php/Test_Rest_Save_Workflow.php` (the REST tests follow the same pattern).
 - Do not "fix" this by calling `wp_register_ability` directly against the registry mid-request; the gate is core policy.
 
 ### Admin UI
 
 - **List** (`includes/admin/class-workflow-list-table.php`): hero banner (`assets/images/baton-banner.png`), search, `WP_List_Table` (DataViews deferred until core default).
-- **Edit** (`includes/admin/class-admin.php`): title/excerpt form (`#baton-form`) + hidden fields `workflow_definition` and `baton_editor_layout` synced from React; abilities/definition/layout bootstrapped as JSON in script tags plus a `window.BatonEditor` config (AJAX URL, nonce, post ID, strings).
-- **Run** (`assets/admin-run.js`): AJAX action `baton_run`, displays step-by-step report.
-- **Save paths**: the classic form POST (`handle_save_post`) and the AJAX endpoint `baton_save_workflow` (`ajax_save_workflow`) share `persist_workflow()`, which writes definition + pruned layout and re-registers the ability when published.
-- **AJAX save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `baton_save_workflow` (no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
+- **Edit** (`includes/admin/class-admin.php`): title/excerpt form (`#baton-form`) + hidden fields `workflow_definition` and `baton_editor_layout` synced from React; abilities/definition/layout bootstrapped as JSON in script tags plus a `window.BatonEditor` config (REST save URL, wp_rest nonce, post ID, strings).
+- **Run** (`assets/admin-run.js`): POSTs to `Baton_Rest_Controller::run_url()`, displays step-by-step report.
+- **Save paths**: the classic form POST (`handle_save_post`) and the REST endpoint (`Baton_Rest_Controller::handle_save`) both funnel into `Baton_Admin::save_workflow_post()` → `persist_workflow()`, which writes definition + pruned layout and re-registers the ability when published.
+- **REST endpoints** (`includes/class-rest-controller.php`, namespace `baton/v1`): `POST /baton/v1/workflows` (save; JSON body, same fields as the form POST, returns `{post_id, edit_url, message}`) and `POST /baton/v1/workflows/{id}/run` (JSON body `{initial_input}`; returns the full runner report `{success, steps, error}` — step failures stay HTTP 200 in-band, request-level failures use 400/403/404). `check_permissions()` requires `manage_options`, plus a valid `X-WP-Nonce` (`wp_rest`) for cookie-authenticated requests, matching core's `rest_cookie_check_errors()` semantics.
+- **REST save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `POST /baton/v1/workflows` (JSON body + `X-WP-Nonce`, no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
 
 ### Editor views (Phase 0–3)
 
@@ -97,8 +98,9 @@ includes/
   class-input-mapper.php  # Dot paths, scalar vs object input
   class-schema-paths.php  # I/O summaries, path catalogs for UI
   class-ability-catalog.php
+  class-rest-controller.php  # POST /baton/v1/workflows[/{id}/run]
   admin/
-    class-admin.php       # Menu, edit/list, enqueue, save (form + AJAX), run
+    class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
     class-workflow-list-table.php
 src/
   index.js
@@ -115,7 +117,7 @@ assets/
   images/baton-banner.png
 tests/
   bootstrap.php           # wp-env phpunit bootstrap
-  php/                    # Test_* classes (incl. Test_Ajax_Save_Workflow)
+  php/                    # Test_* classes (incl. Test_Rest_Save_Workflow)
   php/fixtures/           # Registered test abilities for integration tests
 ```
 
@@ -131,7 +133,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (72 tests)
+npm run test:php               # wp-env phpunit (80 tests)
 ```
 
 PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and match existing `Baton_*` class style.
@@ -152,6 +154,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 - Workflow-level **initial input → step 1 data filter** in the editor (runtime supports `initial_input`; UI exposure is limited).
 - Run-report node badges on the canvas (admin-run.js results mapped onto nodes by step id).
 - Per-browser editor-view preference (node|stack) via localStorage; `baton_editor_mode` filter sets the default only.
+- **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Database/transient integration for persisting workflow output.
