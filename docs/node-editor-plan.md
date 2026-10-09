@@ -155,7 +155,7 @@ Both view shells exist **from the start**, in a clean space:
 
 ### Phase 3 — parity & polish
 
-- `admin-run.js`: step results rendered with node ids so the run report maps onto the canvas (badges/outline on nodes after a run).
+- `admin-run.js`: step results rendered with node ids so the run report maps onto the canvas (badges/outline on nodes after a run). ✅ **Shipped** — `baton:run-report` window event from the run panel, badges in `NodeView`; stack-view initial-input parity shipped alongside it. The remaining Phase-3 items (chain reordering, mapping auto-suggest) were split into the planned **canvas overhaul** next phase: [canvas-overhaul-plan.md](canvas-overhaul-plan.md).
 - Auto-layout refinement if needed; CSS audit (the stack view is permanent now, so `baton-editor.css` chain styles **stay** for `StackView` — only genuinely dead styles are removed).
 - Docs: README, `AGENTS.md` (record the hybrid-architecture rule and the native-select convention), screenshot updates.
 

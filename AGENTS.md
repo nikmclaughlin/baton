@@ -81,8 +81,8 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 
 The editor ships two synced views behind a `ToggleGroupControl`; the chosen view persists per browser via localStorage over the `baton_editor_mode` filter default (node):
 
-- **Node canvas** (`src/editor/NodeView.js`): `@xyflow/react`; ability nodes with I/O chips + loop panel, a data-filter connector node, and an `inputNode` for `initial_input`. Drag from the library or drop onto an edge to insert between steps; Remove re-links neighbors; linearity enforced by `isValidConnection` (single chain — DAG is a future, separate design).
-- **Stack view** (`src/editor/App.js`): vertical step cards with data-filter slots; permanent, first-class fallback.
+- **Node canvas** (`src/editor/NodeView.js`): `@xyflow/react`; ability nodes with I/O chips + loop panel, a data-filter connector node, and an `inputNode` for `initial_input`. Run reports from the run panel badge each step node (success / warnings / failure): `admin-run.js` re-dispatches results as a window `baton:run-report` event, the shell holds the report so badges survive view toggles, and any step edit clears them (the endpoint runs the saved definition). Drag from the library or drop onto an edge to insert between steps; Remove re-links neighbors; linearity enforced by `isValidConnection` (single chain — DAG is a future, separate design).
+- **Stack view** (`src/editor/App.js`): vertical step cards with data-filter slots; permanent, first-class fallback. Mirrors the canvas' workflow-level input affordances: an input anchor card with an "Edit initial input" button (shared `InitialInputPanel` modal) and the initial → step 1 data-filter slot ahead of the first step.
 - **Shell** (`src/editor/Shell.js`): owns saving, modal routing, snackbar, the view toggle, and the hidden-field contract (`BatonEditorSync` serializes definition/layout into the DOM fields from whichever view is active). View choice is persisted to `localStorage` (`batonEditorView`) on toggle and read back on load (falls back to the filter default when unset or storage is unavailable).
 - **Layout**: node positions persist in `_baton_editor_layout`, pruned to definition ids; the hidden field is seeded server-side from stored layout so stack-view saves keep positions.
 
@@ -151,15 +151,12 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 
 ## Known gaps / roadmap
 
-- Workflow-level **initial input → step 1 data filter** in the editor (runtime supports `initial_input`; UI exposure is limited).
-- Run-report node badges on the canvas (admin-run.js results mapped onto nodes by step id).
+- **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
 - **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Database/transient integration for persisting workflow output.
-- Advanced drag-and-drop workflow building UI.
 - Code snippet nodes for fully custom data processing.
-- Mapping auto-suggest from schema paths.
 - Replace list table with DataViews when appropriate in core.
 - User-facing copy pass on mapper warning strings.
 
