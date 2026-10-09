@@ -15,7 +15,7 @@ import {
 	useRef,
 	useState,
 } from '@wordpress/element';
-import { Button, Modal, Notice, TextareaControl } from '@wordpress/components';
+import { Button } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import {
 	Background,
@@ -30,18 +30,36 @@ import {
 import '@xyflow/react/dist/style.css';
 import {
 	DataFilterPanel,
+	InitialInputPanel,
 	IoChip,
 	IoDetailPanel,
 	LoopPanel,
 	AbilitySelect,
 } from './components';
-import {
-	applyAbilityChange,
-	connectorSummary,
-	getAbility,
-	stringifyJson,
-} from './utils';
-import { resolveLayout, stepsToGraph } from './graph';
+import { applyAbilityChange, connectorSummary, getAbility } from './utils';
+import { resolveLayout, runStepForIndex, stepsToGraph } from './graph';
+
+function RunBadge( { runStep } ) {
+	const warnings = Array.isArray( runStep.warnings ) ? runStep.warnings : [];
+	let state = 'error';
+	if ( runStep.success ) {
+		state = warnings.length ? 'warn' : 'ok';
+	}
+	const glyph = { ok: '✓', warn: '!', error: '✗' }[ state ];
+	let title = runStep.error || '';
+	if ( ! title && warnings.length ) {
+		title = warnings.join( ' ' );
+	}
+
+	return (
+		<span
+			className={ `baton-node__run-badge baton-run-badge--${ state }` }
+			title={ title }
+		>
+			{ glyph }
+		</span>
+	);
+}
 
 function InputNode( { data } ) {
 	return (
@@ -78,6 +96,7 @@ function AbilityNode( { data } ) {
 				</span>
 				<strong>
 					{ `${ __( 'Step', 'baton' ) } ${ stepIndex + 1 }` }
+					{ data.runStep && <RunBadge runStep={ data.runStep } /> }
 				</strong>
 				<button
 					type="button"
@@ -177,98 +196,6 @@ const edgeTypes = {
 	mappingEdge: MappingEdge,
 };
 
-function InitialInputPanel( {
-	open,
-	initialInput,
-	onClose,
-	onChange,
-	onSave,
-	saving,
-} ) {
-	const [ draft, setDraft ] = useState( () =>
-		stringifyJson( initialInput || {} )
-	);
-	const [ jsonError, setJsonError ] = useState( null );
-
-	useEffect( () => {
-		if ( open ) {
-			setDraft( stringifyJson( initialInput || {} ) );
-			setJsonError( null );
-		}
-	}, [ open ] ); // eslint-disable-line react-hooks/exhaustive-deps -- reset only when opening.
-
-	if ( ! open ) {
-		return null;
-	}
-
-	const handleChange = ( text ) => {
-		setDraft( text );
-		if ( ! text || ! String( text ).trim() ) {
-			onChange( {} );
-			setJsonError( null );
-			return;
-		}
-		try {
-			const parsed = JSON.parse( text );
-			onChange( parsed ?? {} );
-			setJsonError( null );
-		} catch {
-			setJsonError(
-				__(
-					'Invalid JSON — keep editing or fix before saving the workflow.',
-					'baton'
-				)
-			);
-		}
-	};
-
-	return (
-		<Modal
-			title={ __( 'Workflow initial input', 'baton' ) }
-			onRequestClose={ onClose }
-		>
-			<Notice status="info" isDismissible={ false }>
-				{ __(
-					'Fixed values available to step 1 via its data filter (source: workflow input).',
-					'baton'
-				) }
-			</Notice>
-			<TextareaControl
-				label={ __( 'Initial input (JSON)', 'baton' ) }
-				value={ draft }
-				onChange={ handleChange }
-				rows={ 8 }
-			/>
-			{ jsonError && (
-				<Notice status="warning" isDismissible={ false }>
-					{ jsonError }
-				</Notice>
-			) }
-			<div className="baton-modal-actions">
-				{ draft !== stringifyJson( initialInput || {} ) ? (
-					<Button
-						variant="primary"
-						disabled={ !! jsonError }
-						isBusy={ !! saving }
-						onClick={ () => {
-							setJsonError( null );
-							if ( typeof onSave === 'function' ) {
-								onSave( onClose );
-							}
-						} }
-					>
-						{ __( 'Save', 'baton' ) }
-					</Button>
-				) : (
-					<Button variant="primary" onClick={ onClose }>
-						{ __( 'Done', 'baton' ) }
-					</Button>
-				) }
-			</div>
-		</Modal>
-	);
-}
-
 /**
  * Drop target resolution: insertion index = number of step nodes above
  * the drop position (vertical-chain convention). 0 inserts before the
@@ -289,6 +216,7 @@ export default function NodeView( {
 	steps,
 	savedLayout,
 	initialInput,
+	runReport,
 	onUpdateStep,
 	onAddStep,
 	onInsertStep,
@@ -325,6 +253,7 @@ export default function NodeView( {
 					step,
 					ability,
 					abilities,
+					runStep: runStepForIndex( runReport, stepIndex ),
 					onAbilityChange: ( slug ) =>
 						onUpdateStep(
 							stepIndex,
@@ -360,7 +289,7 @@ export default function NodeView( {
 			},
 		} ) );
 		return graph;
-	}, [ steps, abilities, positions, onUpdateStep, onRemoveStep ] );
+	}, [ steps, abilities, positions, runReport, onUpdateStep, onRemoveStep ] );
 
 	// Position changes (dragging) update the layout map only; the hidden
 	// field is serialized from the rendered nodes so ids stay valid.

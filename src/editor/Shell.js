@@ -77,6 +77,26 @@ export default function EditorShell( {
 	const savedLayout =
 		initialLayout && typeof initialLayout === 'object' ? initialLayout : {};
 
+	// Last run report, delivered by the run panel (assets/admin-run.js
+	// re-dispatches results as a window event so the bundled editor can
+	// react without a shared build system). Held in the shell — not the
+	// canvas — so badges survive view toggles.
+	const [ runReport, setRunReport ] = useState( null );
+
+	useEffect( () => {
+		const handleRunReport = ( event ) =>
+			setRunReport( event.detail || null );
+		window.addEventListener( 'baton:run-report', handleRunReport );
+		return () =>
+			window.removeEventListener( 'baton:run-report', handleRunReport );
+	}, [] );
+
+	// The run endpoint executes the saved definition, so any step edit
+	// after a run invalidates the badge positions.
+	useEffect( () => {
+		setRunReport( null );
+	}, [ steps ] );
+
 	const savingRef = useRef( false );
 	const pendingSaveRef = useRef( null );
 
@@ -321,6 +341,7 @@ export default function EditorShell( {
 					savedLayout={ savedLayout }
 					initialInput={ initialInput }
 					saving={ saving }
+					runReport={ runReport }
 					onSave={ handleModalSave }
 					onUpdateStep={ ( index, step ) =>
 						setSteps( ( prev ) =>
@@ -354,8 +375,10 @@ export default function EditorShell( {
 					abilities={ abilities }
 					steps={ steps }
 					setSteps={ setSteps }
+					initialInput={ initialInput }
 					saving={ saving }
 					onSave={ handleModalSave }
+					onInitialInputChange={ setInitialInput }
 				/>
 			) }
 

@@ -178,3 +178,25 @@ export function graphToLayout( nodes ) {
 	} );
 	return layout;
 }
+
+/**
+ * Find the runner report step for a definition step index, if that step
+ * ran. Runner report steps carry a numeric `index` matching the
+ * definition's step array position.
+ *
+ * @param {Object|null} runReport Workflow_Runner report ({success, steps}).
+ * @param {number}      stepIndex Definition step array index.
+ * @return {Object|null} Matching report step, or null when it did not run.
+ */
+export function runStepForIndex( runReport, stepIndex ) {
+	if ( ! runReport ) {
+		return null;
+	}
+	const reportSteps = runReport.steps || [];
+	for ( let i = 0; i < reportSteps.length; i++ ) {
+		if ( Number( reportSteps[ i ]?.index ) === stepIndex ) {
+			return reportSteps[ i ];
+		}
+	}
+	return null;
+}

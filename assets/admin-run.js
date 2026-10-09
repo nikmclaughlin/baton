@@ -135,6 +135,13 @@
 			}
 
 			const report = result && typeof result === 'object' ? result : {};
+
+			// Bridge to the editor build: the bundled editor listens for
+			// this event to map step results onto its canvas nodes.
+			window.dispatchEvent(
+				new CustomEvent( 'baton:run-report', { detail: report } )
+			);
+
 			let html = '';
 
 			if ( report.success ) {

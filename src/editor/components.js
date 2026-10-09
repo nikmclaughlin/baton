@@ -23,6 +23,7 @@ import {
 	indentNestedLabel,
 	sanitizeMappingsForSave,
 	groupAbilitiesByCategory,
+	stringifyJson,
 } from './utils';
 
 export function defaultMappingRow( stepIndex ) {
@@ -593,6 +594,115 @@ export function IoDetailPanel( {
 				) : (
 					<Button variant="primary" onClick={ handleClose }>
 						{ __( 'Close', 'baton' ) }
+					</Button>
+				) }
+			</div>
+		</Modal>
+	);
+}
+
+/**
+ * Initial input (workflow-level) JSON modal, shared by both views. On the
+ * canvas it is opened from the input node; on the stack from the workflow
+ * input anchor card. Live-parses JSON while typing; "Save" persists via
+ * the workflow's save endpoint when the draft differs from the saved
+ * value, otherwise it is a plain "Done" close.
+ *
+ * @param {Object}   root0              Component props.
+ * @param {boolean}  root0.open         Whether the modal is open.
+ * @param {Object}   root0.initialInput Saved workflow initial input.
+ * @param {Function} root0.onClose      Called to close the modal.
+ * @param {Function} root0.onChange     Called with the parsed draft while typing.
+ * @param {Function} root0.onSave       Called with the close callback to persist.
+ * @param {boolean}  root0.saving       Whether a workflow save is in flight.
+ */
+export function InitialInputPanel( {
+	open,
+	initialInput,
+	onClose,
+	onChange,
+	onSave,
+	saving,
+} ) {
+	const [ draft, setDraft ] = useState( () =>
+		stringifyJson( initialInput || {} )
+	);
+	const [ jsonError, setJsonError ] = useState( null );
+
+	useEffect( () => {
+		if ( open ) {
+			setDraft( stringifyJson( initialInput || {} ) );
+			setJsonError( null );
+		}
+	}, [ open ] ); // eslint-disable-line react-hooks/exhaustive-deps -- reset only when opening.
+
+	if ( ! open ) {
+		return null;
+	}
+
+	const handleChange = ( text ) => {
+		setDraft( text );
+		if ( ! text || ! String( text ).trim() ) {
+			onChange( {} );
+			setJsonError( null );
+			return;
+		}
+		try {
+			const parsed = JSON.parse( text );
+			onChange( parsed ?? {} );
+			setJsonError( null );
+		} catch {
+			setJsonError(
+				__(
+					'Invalid JSON — keep editing or fix before saving the workflow.',
+					'baton'
+				)
+			);
+		}
+	};
+
+	const handleDone = () => {
+		setJsonError( null );
+		if ( typeof onSave === 'function' ) {
+			onSave( onClose );
+		}
+	};
+
+	return (
+		<Modal
+			title={ __( 'Workflow initial input', 'baton' ) }
+			onRequestClose={ onClose }
+		>
+			<Notice status="info" isDismissible={ false }>
+				{ __(
+					'Fixed values available to step 1 via its data filter (source: workflow input).',
+					'baton'
+				) }
+			</Notice>
+			<TextareaControl
+				label={ __( 'Initial input (JSON)', 'baton' ) }
+				value={ draft }
+				onChange={ handleChange }
+				rows={ 8 }
+			/>
+			{ jsonError && (
+				<Notice status="warning" isDismissible={ false }>
+					{ jsonError }
+				</Notice>
+			) }
+			<div className="baton-modal-actions">
+				{ draft !== stringifyJson( initialInput || {} ) ? (
+					<Button
+						variant="primary"
+						disabled={ !! jsonError }
+						isBusy={ !! saving }
+						onClick={ handleDone }
+					>
+						{ __( 'Save', 'baton' ) }
+					</Button>
+				) : (
+					<Button variant="primary" onClick={ onClose }>
+						{ __( 'Done', 'baton' ) }
 					</Button>
 				) }
 			</div>

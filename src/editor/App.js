@@ -15,6 +15,7 @@ import {
 } from './utils';
 import {
 	AbilitySelect,
+	InitialInputPanel,
 	IoChip,
 	LoopPanel,
 	DataFilterPanel,
@@ -293,6 +294,8 @@ export default function WorkflowEditor( {
 	initialDefinition,
 	steps: controlledSteps,
 	setSteps: setControlledSteps,
+	initialInput,
+	onInitialInputChange,
 	saving,
 	onSave,
 } ) {
@@ -306,6 +309,7 @@ export default function WorkflowEditor( {
 	const setSteps = setControlledSteps ?? setInternalSteps;
 	const [ activeFilter, setActiveFilter ] = useState( null );
 	const [ ioPanel, setIoPanel ] = useState( null );
+	const [ inputPanelOpen, setInputPanelOpen ] = useState( false );
 
 	const updateStep = ( index, patch ) => {
 		setSteps( ( prev ) =>
@@ -390,7 +394,7 @@ export default function WorkflowEditor( {
 					<strong>{ __( 'Data filter nodes', 'baton' ) }</strong>
 					{ ' — ' }
 					{ __(
-						'sit between steps and define how values are passed from one step into the next at run time.',
+						'define how values are passed at run time: step 1 reads from the workflow input, later steps from the previous step.',
 						'baton'
 					) }
 				</p>
@@ -408,6 +412,37 @@ export default function WorkflowEditor( {
 			</div>
 
 			<div className="baton-editor__chain">
+				<div
+					key="baton-input-segment"
+					className="baton-editor__segment baton-editor__segment--input"
+				>
+					<Card className="baton-input-card">
+						<CardBody>
+							<div className="baton-input-card__row">
+								<div>
+									<span className="baton-input-card__type">
+										{ __( 'Workflow input', 'baton' ) }
+									</span>
+									<code>{ 'initial_input' }</code>
+								</div>
+								<Button
+									variant="secondary"
+									onClick={ () => setInputPanelOpen( true ) }
+									size="small"
+								>
+									{ __( 'Edit initial input', 'baton' ) }
+								</Button>
+							</div>
+						</CardBody>
+					</Card>
+					<DataFilterSlot
+						downstreamIndex={ 0 }
+						steps={ steps }
+						abilities={ abilities }
+						onConfigure={ () => setActiveFilter( 0 ) }
+						onRemove={ () => changeMappings( 0, [] ) }
+					/>
+				</div>
 				{ steps.map( ( step, index ) => (
 					<div
 						key={ `step-${ index }` }
@@ -472,6 +507,15 @@ export default function WorkflowEditor( {
 				onInputChange={ ( stepIndex, input ) =>
 					updateStep( stepIndex, { input } )
 				}
+				onSave={ onSave }
+				saving={ saving }
+			/>
+
+			<InitialInputPanel
+				open={ inputPanelOpen }
+				initialInput={ initialInput }
+				onClose={ () => setInputPanelOpen( false ) }
+				onChange={ onInitialInputChange }
 				onSave={ onSave }
 				saving={ saving }
 			/>

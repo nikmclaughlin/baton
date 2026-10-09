@@ -87,6 +87,32 @@
 	margin-bottom: 0;
 }
 
+/* Stack view: workflow input anchor (initial_input source). */
+.baton-input-card {
+	margin-bottom: 0;
+}
+
+.baton-input-card__row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 12px;
+}
+
+.baton-input-card__type {
+	display: block;
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: #646970;
+	margin-bottom: 2px;
+}
+
+.baton-input-card code {
+	font-size: 11px;
+	color: #50575e;
+}
+
 .baton-step-card__type,
 .baton-filter-node__type {
 	display: block;
@@ -515,6 +541,33 @@
 	padding: 0;
 	margin-top: 4px;
 	text-decoration: underline;
+}
+
+/* Run-report badges: per-step status after a run from the run panel. */
+.baton-node__run-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	margin-left: 6px;
+	border-radius: 50%;
+	font-size: 11px;
+	line-height: 1;
+	color: #fff;
+	vertical-align: -2px;
+}
+
+.baton-run-badge--ok {
+	background: #46b450;
+}
+
+.baton-run-badge--warn {
+	background: #f0a300;
+}
+
+.baton-run-badge--error {
+	background: #d63638;
 }
 
 .baton-edge-chip {
