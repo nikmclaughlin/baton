@@ -79,11 +79,11 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 
 ### Editor views (Phase 0–3)
 
-The editor ships two synced views behind a `ToggleGroupControl`; `baton_editor_mode` filter sets the default (node):
+The editor ships two synced views behind a `ToggleGroupControl`; the chosen view persists per browser via localStorage over the `baton_editor_mode` filter default (node):
 
 - **Node canvas** (`src/editor/NodeView.js`): `@xyflow/react`; ability nodes with I/O chips + loop panel, a data-filter connector node, and an `inputNode` for `initial_input`. Drag from the library or drop onto an edge to insert between steps; Remove re-links neighbors; linearity enforced by `isValidConnection` (single chain — DAG is a future, separate design).
 - **Stack view** (`src/editor/App.js`): vertical step cards with data-filter slots; permanent, first-class fallback.
-- **Shell** (`src/editor/Shell.js`): owns saving, modal routing, snackbar, the view toggle, and the hidden-field contract (`BatonEditorSync` serializes definition/layout into the DOM fields from whichever view is active).
+- **Shell** (`src/editor/Shell.js`): owns saving, modal routing, snackbar, the view toggle, and the hidden-field contract (`BatonEditorSync` serializes definition/layout into the DOM fields from whichever view is active). View choice is persisted to `localStorage` (`batonEditorView`) on toggle and read back on load (falls back to the filter default when unset or storage is unavailable).
 - **Layout**: node positions persist in `_baton_editor_layout`, pruned to definition ids; the hidden field is seeded server-side from stored layout so stack-view saves keep positions.
 
 ## Project layout
@@ -153,7 +153,6 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 
 - Workflow-level **initial input → step 1 data filter** in the editor (runtime supports `initial_input`; UI exposure is limited).
 - Run-report node badges on the canvas (admin-run.js results mapped onto nodes by step id).
-- Per-browser editor-view preference (node|stack) via localStorage; `baton_editor_mode` filter sets the default only.
 - **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.

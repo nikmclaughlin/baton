@@ -1,7 +1,8 @@
 /**
  * Editor shell: owns the definition state (steps + initial_input) and the
  * node|stack view toggle. Both views render from the same state, so
- * switching is lossless.
+ * switching is lossless. The chosen view is remembered per browser via
+ * localStorage, overriding the server-provided default.
  *
  * Also owns workflow saving: modal "Save" buttons and the bottom form
  * submit both funnel into saveWorkflow(), which syncs the hidden fields,
@@ -23,6 +24,28 @@ function readInputValue( id ) {
 	return el && 'value' in el ? el.value : '';
 }
 
+// Per-browser editor-view preference. Falls back to the server-provided
+// default (the baton_editor_mode filter) when nothing is stored yet or
+// storage is unavailable (privacy modes may throw on access).
+const VIEW_STORAGE_KEY = 'batonEditorView';
+
+function readStoredView() {
+	try {
+		const stored = window.localStorage.getItem( VIEW_STORAGE_KEY );
+		return 'node' === stored || 'stack' === stored ? stored : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeStoredView( value ) {
+	try {
+		window.localStorage.setItem( VIEW_STORAGE_KEY, value );
+	} catch {
+		// Unwritable storage: the preference just won't persist.
+	}
+}
+
 export default function EditorShell( {
 	abilities,
 	initialDefinition,
@@ -30,9 +53,13 @@ export default function EditorShell( {
 	initialMode = 'node',
 } ) {
 	const editorConfig = window.BatonEditor || {};
-	const [ view, setView ] = useState(
-		'stack' === initialMode ? 'stack' : 'node'
-	);
+	const [ view, setView ] = useState( () => {
+		const stored = readStoredView();
+		if ( stored ) {
+			return stored;
+		}
+		return 'stack' === initialMode ? 'stack' : 'node';
+	} );
 	const [ steps, setSteps ] = useState( () => {
 		const s = initialDefinition?.steps;
 		return s?.length
@@ -270,7 +297,10 @@ export default function EditorShell( {
 					label={ __( 'Editor view', 'baton' ) }
 					hideLabelFromVision
 					value={ view }
-					onChange={ ( next ) => setView( next ) }
+					onChange={ ( next ) => {
+						setView( next );
+						writeStoredView( next );
+					} }
 					className="baton-editor__view-toggle"
 				>
 					<ToggleGroupControlOption

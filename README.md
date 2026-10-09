@@ -28,7 +28,7 @@ Prebuilt editor assets are included in `build/` — you do not need Node or npm 
 
 ![Baton - Workflow list view](.wordpress-org/screenshot-1.jpg)
 
-**Tools → Baton** — create workflows in the visual editor and run them from the admin. Each workflow can be edited in two synced views: a **node canvas** (drag abilities from the library, wire data between nodes, save without leaving the page) and a **stack view** (vertical step cards with data-filter slots between them).
+**Tools → Baton** — create workflows in the visual editor and run them from the admin. Each workflow can be edited in two synced views: a **node canvas** (drag abilities from the library, wire data between nodes, save without leaving the page) and a **stack view** (vertical step cards with data-filter slots between them). The chosen view is remembered locally in the browser (`localStorage`); the `baton_editor_mode` filter only changes the default for browsers that haven't picked a view yet.
 
 Data filters on the connections between steps control what flows between abilities (field-level dot-path mapping); every published workflow is itself available as `baton/workflow-{post_id}` for nesting in other workflows or use in external tooling.
 
@@ -39,7 +39,6 @@ The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/work
 
 - Workflow-level **initial input → step 1 data filter** in the editor (runtime supports `initial_input`; UI exposure is limited).
 - Run-report node badges on the canvas (map run results onto nodes by step id).
-- Per-browser editor-view preference (node|stack) via localStorage.
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Database/transient integration for persisting workflow output.
