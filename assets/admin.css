@@ -18,6 +18,7 @@
 	height: 250px;
 	max-width: 100%;
 	object-fit: contain;
+
 	/* Keep baton + title + tagline in frame; trim surrounding whitespace. */
 	object-position: 18% center;
 }

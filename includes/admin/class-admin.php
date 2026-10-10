@@ -1,6 +1,6 @@
 <?php
 /**
- * Admin screens and AJAX handlers.
+ * Admin screens and REST-backed workflow endpoints.
  *
  * @package Baton
  */
@@ -18,9 +18,10 @@ final class Baton_Admin {
 
 	public const PAGE_SLUG = 'baton';
 
+	/**
+	 * Nonce action for the classic (non-JS) form POST save fallback.
+	 */
 	public const NONCE_ACTION = 'baton_admin';
-
-	public const AJAX_RUN = 'baton_run';
 
 	/**
 	 * Register hooks.
@@ -29,7 +30,6 @@ final class Baton_Admin {
 		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
 		add_action( 'admin_init', array( self::class, 'maybe_handle_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_assets' ) );
-		add_action( 'wp_ajax_' . self::AJAX_RUN, array( self::class, 'ajax_run_workflow' ) );
 	}
 
 	/**
@@ -145,6 +145,22 @@ final class Baton_Admin {
 		echo '<script type="application/json" id="baton-definition-data">';
 		echo wp_json_encode( $definition );
 		echo '</script>';
+		echo '<script type="application/json" id="baton-layout-data">';
+		echo wp_json_encode( Baton_Workflow_CPT::get_layout( (int) $post_id ) );
+		echo '</script>';
+		$editor_config = array(
+			'editorMode' => 'stack' === apply_filters( 'baton_editor_mode', 'node' ) ? 'stack' : 'node',
+			'restRoot'   => Baton_Rest_Controller::save_url(),
+			'restNonce'  => wp_create_nonce( 'wp_rest' ),
+			'postId'     => (int) $post_id,
+			'strings'    => array(
+				'saving'        => __( 'Saving…', 'baton' ),
+				'saved'         => __( 'Workflow saved.', 'baton' ),
+				'saveFailed'    => __( 'Save failed.', 'baton' ),
+				'titleRequired' => __( 'Title is required.', 'baton' ),
+			),
+		);
+		echo '<script>window.BatonEditor = ' . wp_json_encode( $editor_config ) . ';</script>';
 
 		echo '<form method="post" id="baton-form">';
 		wp_nonce_field( self::NONCE_ACTION, 'baton_nonce' );
@@ -169,6 +185,9 @@ final class Baton_Admin {
 		echo '<div id="baton-editor-root"></div>';
 
 		echo '<input type="hidden" name="workflow_definition" id="workflow_definition" value="' . esc_attr( (string) wp_json_encode( $definition ) ) . '" />';
+		// Seed with the stored layout so a save from the stack view (where
+		// NodeView is unmounted) keeps existing node positions.
+		echo '<input type="hidden" name="baton_editor_layout" id="baton_editor_layout" value="' . esc_attr( (string) wp_json_encode( Baton_Workflow_CPT::get_layout( (int) $post_id ) ) ) . '" />';
 
 		echo '<p class="submit">';
 		submit_button( __( 'Save Workflow', 'baton' ), 'primary', 'submit', false );
@@ -236,6 +255,9 @@ final class Baton_Admin {
 	/**
 	 * Handle save POST.
 	 *
+	 * Delegates validation and persistence to save_workflow_post(), shared
+	 * with the REST save endpoint.
+	 *
 	 * @param int  $post_id Existing post ID.
 	 * @param bool $is_new  Whether this is a new workflow.
 	 */
@@ -246,75 +268,29 @@ final class Baton_Admin {
 
 		check_admin_referer( self::NONCE_ACTION, 'baton_nonce' );
 
-		$title       = isset( $_POST['workflow_title'] ) ? sanitize_text_field( wp_unslash( $_POST['workflow_title'] ) ) : '';
-		$excerpt     = isset( $_POST['workflow_excerpt'] ) ? sanitize_textarea_field( wp_unslash( $_POST['workflow_excerpt'] ) ) : '';
-		$def_raw     = isset( $_POST['workflow_definition'] ) ? wp_unslash( $_POST['workflow_definition'] ) : '{}'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-		$def_decoded = json_decode( $def_raw, true );
+		$title   = isset( $_POST['workflow_title'] ) ? sanitize_text_field( wp_unslash( $_POST['workflow_title'] ) ) : '';
+		$excerpt = isset( $_POST['workflow_excerpt'] ) ? sanitize_textarea_field( wp_unslash( $_POST['workflow_excerpt'] ) ) : '';
+		$def_raw = isset( $_POST['workflow_definition'] ) ? wp_unslash( $_POST['workflow_definition'] ) : '{}'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$decoded = json_decode( $def_raw, true );
 
-		if ( ! is_array( $def_decoded ) ) {
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page'        => self::PAGE_SLUG,
-						'action'      => $is_new ? 'new' : 'edit',
-						'workflow_id' => $post_id > 0 ? $post_id : null,
-						'error'       => rawurlencode( __( 'Invalid workflow definition JSON.', 'baton' ) ),
-					),
-					admin_url( 'tools.php' )
-				)
-			);
-			exit;
+		if ( ! is_array( $decoded ) ) {
+			self::redirect_save_error( $is_new ? 'new' : 'edit', $post_id, __( 'Invalid workflow definition JSON.', 'baton' ) );
 		}
 
-		$definition = Baton_Workflow_CPT::sanitize_definition( $def_decoded );
+		$layout_raw = isset( $_POST['baton_editor_layout'] ) ? wp_unslash( $_POST['baton_editor_layout'] ) : '{}'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		if ( '' === $title ) {
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page'   => self::PAGE_SLUG,
-						'action' => $is_new ? 'new' : 'edit',
-						'error'  => rawurlencode( __( 'Title is required.', 'baton' ) ),
-					),
-					admin_url( 'tools.php' )
-				)
-			);
-			exit;
-		}
+		$result = self::save_workflow_post(
+			array(
+				'title'       => $title,
+				'excerpt'     => $excerpt,
+				'definition'  => $decoded,
+				'layout_raw'  => (string) $layout_raw,
+				'workflow_id' => $post_id,
+			)
+		);
 
-		if ( $is_new || $post_id <= 0 ) {
-			$post_id = wp_insert_post(
-				array(
-					'post_type'    => Baton_Workflow_CPT::POST_TYPE,
-					'post_status'  => 'publish',
-					'post_title'   => $title,
-					'post_excerpt' => $excerpt,
-				),
-				true
-			);
-
-			if ( is_wp_error( $post_id ) ) {
-				wp_die( esc_html( $post_id->get_error_message() ) );
-			}
-		} else {
-			$updated = wp_update_post(
-				array(
-					'ID'           => $post_id,
-					'post_title'   => $title,
-					'post_excerpt' => $excerpt,
-				),
-				true
-			);
-
-			if ( is_wp_error( $updated ) ) {
-				wp_die( esc_html( $updated->get_error_message() ) );
-			}
-		}
-
-		Baton_Workflow_CPT::save_definition( (int) $post_id, $definition );
-
-		if ( 'publish' === get_post_status( $post_id ) ) {
-			Baton_Workflow_Abilities::register_workflow_ability( (int) $post_id );
+		if ( is_wp_error( $result ) ) {
+			self::redirect_save_error( $is_new ? 'new' : 'edit', $post_id, $result->get_error_message() );
 		}
 
 		wp_safe_redirect(
@@ -322,8 +298,34 @@ final class Baton_Admin {
 				array(
 					'page'        => self::PAGE_SLUG,
 					'action'      => 'edit',
-					'workflow_id' => $post_id,
+					'workflow_id' => $result['post_id'],
 					'saved'       => '1',
+				),
+				admin_url( 'tools.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Redirect back to the editor with a save error banner.
+	 *
+	 * Exits the request (wp_safe_redirect + exit), mirroring wp_die() for
+	 * hard failures on the classic form path.
+	 *
+	 * @param string $action   Editor action ('new' or 'edit') the error came from.
+	 * @param int    $post_id  Workflow post ID when known.
+	 * @param string $message  Error message to display.
+	 * @return never
+	 */
+	private static function redirect_save_error( string $action, int $post_id, string $message ) {
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'        => self::PAGE_SLUG,
+					'action'      => $action,
+					'workflow_id' => $post_id > 0 ? $post_id : null,
+					'error'       => rawurlencode( $message ),
 				),
 				admin_url( 'tools.php' )
 			)
@@ -383,6 +385,14 @@ final class Baton_Admin {
 			array( 'baton-admin' ),
 			BATON_VERSION
 		);
+		// Built editor CSS (wp-scripts emits style-index.css; includes the
+		// React Flow stylesheet). Enqueued only on edit/new screens.
+		wp_register_style(
+			'baton-editor-build',
+			BATON_URL . 'build/style-index.css',
+			array( 'baton-editor' ),
+			BATON_VERSION
+		);
 
 		$action = isset( $_GET['action'] ) ? sanitize_text_field( wp_unslash( $_GET['action'] ) ) : 'list'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
@@ -394,7 +404,7 @@ final class Baton_Admin {
 
 		$post_id = isset( $_GET['workflow_id'] ) ? absint( $_GET['workflow_id'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 		if ( $post_id > 0 && in_array( $action, array( 'edit', '' ), true ) ) {
-			self::enqueue_run_panel_assets();
+			self::enqueue_run_panel_assets( $post_id );
 		}
 	}
 
@@ -423,6 +433,7 @@ final class Baton_Admin {
 
 		wp_enqueue_style( 'baton-admin' );
 		wp_enqueue_style( 'baton-editor' );
+		wp_enqueue_style( 'baton-editor-build' );
 
 		if ( function_exists( 'wp_set_script_translations' ) ) {
 			wp_set_script_translations( 'baton-editor', 'baton', BATON_DIR . 'languages' );
@@ -431,8 +442,10 @@ final class Baton_Admin {
 
 	/**
 	 * Enqueue run panel script on saved workflow edit screen.
+	 *
+	 * @param int $post_id Workflow post ID.
 	 */
-	private static function enqueue_run_panel_assets(): void {
+	private static function enqueue_run_panel_assets( int $post_id ): void {
 		wp_enqueue_script(
 			'baton-admin-run',
 			BATON_URL . 'assets/admin-run.js',
@@ -445,8 +458,8 @@ final class Baton_Admin {
 			'baton-admin-run',
 			'Baton',
 			array(
-				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
-				'nonce'   => wp_create_nonce( self::NONCE_ACTION ),
+				'runUrl'  => Baton_Rest_Controller::run_url( $post_id ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
 				'strings' => array(
 					'running'     => __( 'Running workflow…', 'baton' ),
 					'runSuccess'  => __( 'Workflow completed successfully.', 'baton' ),
@@ -461,44 +474,115 @@ final class Baton_Admin {
 	}
 
 	/**
-	 * AJAX: run workflow.
+	 * Persist definition and layout for a workflow, then re-register its ability.
+	 *
+	 * Shared by the classic form POST and the REST save endpoint.
+	 *
+	 * @param int                  $post_id    Workflow post ID.
+	 * @param array<string, mixed> $definition Sanitized workflow definition.
+	 * @param string               $layout_raw Raw layout JSON from the editor.
 	 */
-	public static function ajax_run_workflow(): void {
-		check_ajax_referer( self::NONCE_ACTION, 'nonce' );
+	public static function persist_workflow( int $post_id, array $definition, string $layout_raw ): void {
+		Baton_Workflow_CPT::save_definition( $post_id, $definition );
 
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'baton' ) ) );
+		// Persist node-canvas layout, pruned to definition ids.
+		$layout = Baton_Workflow_CPT::sanitize_layout( json_decode( $layout_raw, true ) );
+		$layout = Baton_Workflow_CPT::prune_layout( $layout, $definition );
+		Baton_Workflow_CPT::save_layout( $post_id, $layout );
+
+		if ( 'publish' === get_post_status( $post_id ) ) {
+			Baton_Workflow_Abilities::register_workflow_ability( $post_id );
+		}
+	}
+
+	/**
+	 * Save a workflow from editor input.
+	 *
+	 * Shared by the classic form POST and the REST save endpoint. Validates
+	 * the payload, inserts or updates the workflow post, and persists the
+	 * definition plus node-canvas layout.
+	 *
+	 * @param array<string, mixed> $args Normalized editor payload:
+	 *                                   title, excerpt, definition (already
+	 *                                   decoded), layout_raw, workflow_id.
+	 * @return array{post_id: int, edit_url: string, message: string}|WP_Error Payload on success.
+	 */
+	public static function save_workflow_post( array $args ) {
+		$title      = $args['title'];
+		$excerpt    = $args['excerpt'];
+		$layout_raw = $args['layout_raw'];
+
+		if ( '' === $title ) {
+			return new WP_Error(
+				'baton_save_missing_title',
+				__( 'Title is required.', 'baton' )
+			);
 		}
 
-		$workflow_id = isset( $_POST['workflow_id'] ) ? absint( $_POST['workflow_id'] ) : 0;
-		if ( $workflow_id <= 0 ) {
-			wp_send_json_error( array( 'message' => __( 'Workflow ID is required.', 'baton' ) ) );
-		}
+		$definition  = Baton_Workflow_CPT::sanitize_definition(
+			$args['definition']
+		);
+		$workflow_id = (int) $args['workflow_id'];
 
-		$post = get_post( $workflow_id );
-		if ( ! $post || Baton_Workflow_CPT::POST_TYPE !== $post->post_type ) {
-			wp_send_json_error( array( 'message' => __( 'Workflow not found.', 'baton' ) ) );
-		}
-
-		$definition = Baton_Workflow_CPT::get_definition( $workflow_id );
-
-		if ( isset( $_POST['initial_input'] ) ) {
-			$initial = json_decode( wp_unslash( $_POST['initial_input'] ), true ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-			if ( null === $initial && JSON_ERROR_NONE !== json_last_error() ) {
-				wp_send_json_error( array( 'message' => __( 'Invalid workflow input JSON.', 'baton' ) ) );
+		if ( $workflow_id > 0 ) {
+			$post = get_post( $workflow_id );
+			if ( ! $post || Baton_Workflow_CPT::POST_TYPE !== $post->post_type ) {
+				return new WP_Error(
+					'baton_save_workflow_not_found',
+					__( 'Workflow not found.', 'baton' )
+				);
 			}
-			if ( is_array( $initial ) ) {
-				$definition['initial_input'] = Baton_Input_Sanitizer::sanitize_input_array( $initial );
+
+			$updated = wp_update_post(
+				array(
+					'ID'           => $workflow_id,
+					'post_title'   => $title,
+					'post_excerpt' => $excerpt,
+				),
+				true
+			);
+
+			if ( is_wp_error( $updated ) ) {
+				return new WP_Error(
+					'baton_save_update_failed',
+					$updated->get_error_message()
+				);
+			}
+		} else {
+			$inserted = wp_insert_post(
+				array(
+					'post_type'    => Baton_Workflow_CPT::POST_TYPE,
+					'post_status'  => 'publish',
+					'post_title'   => $title,
+					'post_excerpt' => $excerpt,
+				),
+				true
+			);
+
+			if ( is_wp_error( $inserted ) ) {
+				return new WP_Error(
+					'baton_save_insert_failed',
+					$inserted->get_error_message()
+				);
+			}
+
+			$workflow_id = (int) $inserted;
+
+			if ( $workflow_id <= 0 ) {
+				return new WP_Error(
+					'baton_save_insert_failed',
+					__( 'The workflow could not be created.', 'baton' )
+				);
 			}
 		}
 
-		$report = Baton_Workflow_Runner::run( $definition, $workflow_id );
+		self::persist_workflow( $workflow_id, $definition, $layout_raw );
 
-		if ( $report['success'] ) {
-			wp_send_json_success( $report );
-		}
-
-		wp_send_json_error( $report );
+		return array(
+			'post_id'  => $workflow_id,
+			'edit_url' => self::get_edit_url( $workflow_id ),
+			'message'  => __( 'Workflow saved.', 'baton' ),
+		);
 	}
 
 	/**

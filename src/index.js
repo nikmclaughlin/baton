@@ -1,17 +1,5 @@
 import { createRoot } from '@wordpress/element';
-import WorkflowEditor from './editor/App';
-
-function readJsonElement( id, fallback ) {
-	const el = document.getElementById( id );
-	if ( ! el || ! el.textContent ) {
-		return fallback;
-	}
-	try {
-		return JSON.parse( el.textContent );
-	} catch {
-		return fallback;
-	}
-}
+import EditorShell from './editor/Shell';
 
 document.addEventListener( 'DOMContentLoaded', () => {
 	const rootEl = document.getElementById( 'baton-editor-root' );
@@ -19,17 +7,33 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		return;
 	}
 
+	const readJsonElement = ( id, fallback ) => {
+		const el = document.getElementById( id );
+		if ( ! el ) {
+			return fallback;
+		}
+		try {
+			return JSON.parse( el.textContent || 'null' ) ?? fallback;
+		} catch {
+			return fallback;
+		}
+	};
+
 	const abilities = readJsonElement( 'baton-abilities-data', [] );
 	const definition = readJsonElement( 'baton-definition-data', {
 		initial_input: {},
 		steps: [],
 	} );
+	const layout = readJsonElement( 'baton-layout-data', {} );
+	const mode = window.BatonEditor?.editorMode === 'stack' ? 'stack' : 'node';
 
 	const root = createRoot( rootEl );
 	root.render(
-		<WorkflowEditor
+		<EditorShell
 			abilities={ abilities }
 			initialDefinition={ definition }
+			initialLayout={ layout }
+			initialMode={ mode }
 		/>
 	);
 } );

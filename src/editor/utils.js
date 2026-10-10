@@ -36,12 +36,22 @@ export function groupAbilitiesByCategory( abilities, otherLabel = 'Other' ) {
 
 export function defaultStep() {
 	return {
+		id: defaultStepId(),
 		ability: '',
 		input: {},
 		use_previous_output: false,
 		input_mappings: [],
 		loop: null,
 	};
+}
+
+/**
+ * Generate a stable step id for new steps (node identity for layout).
+ *
+ * @return {string} e.g. 's-k3v9q2mx'.
+ */
+export function defaultStepId() {
+	return `s-${ Math.random().toString( 36 ).slice( 2, 10 ) }`;
 }
 
 export function stringifyJson( value ) {
@@ -185,10 +195,41 @@ export function definitionFromSteps( steps, initialInput = {} ) {
 				use_previous_output: !! step.use_previous_output,
 				input_mappings: step.input_mappings || [],
 			};
+			// Stable node id for layout persistence (runner ignores it).
+			const stableId =
+				typeof step.id === 'string' ? step.id.trim().toLowerCase() : '';
+			if ( /^[a-z0-9_-]{1,40}$/.test( stableId ) ) {
+				s.id = stableId;
+			}
 			if ( step.loop && step.loop.field ) {
 				s.loop = { field: step.loop.field };
 			}
 			return s;
 		} ),
+	};
+}
+
+/**
+ * Replace a step's ability, resetting run-time config the way the stack
+ * editor does: static input back to the ability example (or empty), data
+ * filter mappings cleared, loop removed.
+ *
+ * @param {Object}   step      Current step object.
+ * @param {string}   slug      Ability slug ('' to clear).
+ * @param {Object[]} abilities Ability catalog.
+ * @return {Object} New step object.
+ */
+export function applyAbilityChange( step, slug, abilities ) {
+	const ability = getAbility( abilities, slug );
+	let input = {};
+	if ( ability ) {
+		input = ability.example_input ?? ( ability.input_is_scalar ? '' : {} );
+	}
+	return {
+		...step,
+		ability: slug,
+		input,
+		input_mappings: [],
+		loop: null,
 	};
 }

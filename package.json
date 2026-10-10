@@ -2,11 +2,15 @@
   "name": "baton",
   "version": "0.5.1-alpha",
   "private": true,
+  "engines": {
+    "node": "^24",
+    "npm": ">=11"
+  },
   "scripts": {
     "build": "wp-scripts build",
     "start": "wp-scripts start",
     "lint:js": "wp-scripts lint-js src/",
-    "lint:css": "wp-scripts lint-css",
+    "lint:css": "wp-scripts lint-style",
     "check": "npm run check:static",
     "check:static": "composer check && npm run lint:js",
     "release:org": "bash scripts/build-wordpress-org-release.sh",
@@ -20,6 +24,7 @@
   "dependencies": {
     "@wordpress/components": "^39.0.0",
     "@wordpress/element": "^8.5.0",
-    "@wordpress/i18n": "^6.26.0"
+    "@wordpress/i18n": "^6.26.0",
+    "@xyflow/react": "^12.12.0"
   }
 }
