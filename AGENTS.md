@@ -136,6 +136,18 @@ npx wp-env start               # Docker required
 npm run test:php               # wp-env phpunit (80 tests)
 ```
 
+### Node/npm environment (local/CI parity)
+
+CI runs on **Node 24** with its bundled npm; the same spec lives in `.nvmrc` and `package.json` → `engines` for local use (`nvm use` and fnm/mise honor `.nvmrc`; npm warns on unsupported versions rather than failing). Node 24 is the authoritative environment — it validates PRs and builds releases — so future bumps change `.nvmrc` (the single source CI reads) and `engines` together.
+
+**Lockfile rule (hard-learned):** never trust a lockfile generated or validated with an npm version different from CI's. A local `npm install` can write a lock CI's `npm ci` rejects, and a local `npm ci --dry-run` under that npm can still pass on it. For any dependency or lock change, regenerate **and validate** inside the CI-matching environment:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app node:24 sh -c "npm install --package-lock-only --no-audit && npm ci --dry-run >/dev/null 2>&1 && echo DOCKER-CI-OK"
+```
+
+`DOCKER-CI-OK` is the only trustworthy pre-push lockfile check.
+
 PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and match existing `Baton_*` class style.
 
 ## Conventions for agents

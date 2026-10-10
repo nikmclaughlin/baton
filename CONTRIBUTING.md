@@ -7,7 +7,7 @@ Thank you for helping improve Baton. This project is a WordPress plugin; follow 
 - WordPress **6.9+** (Abilities API)
 - PHP **7.4+**
 - [Composer](https://getcomposer.org/) for PHP tooling
-- [Node.js](https://nodejs.org/) 20+ only when changing the React editor (`src/`)
+- [Node.js](https://nodejs.org/) **24** — the version CI pins; the repo's `.nvmrc` covers `nvm use` (only needed when changing the React editor (`src/`))
 - [Docker](https://www.docker.com/) for PHP integration tests (`@wordpress/env`)
 
 ## Quick checks (matches CI)
@@ -19,6 +19,8 @@ composer install
 npm install
 npm run check
 ```
+
+Run these under Node 24 (`nvm use` — the repo's `.nvmrc` matches CI). A differently-versioned local npm can write a `package-lock.json` that CI's `npm ci` rejects at the PR stage; when touching dependencies, regenerate and validate the lock inside the CI-matching container (see [AGENTS.md](AGENTS.md)).
 
 `npm run check` runs PHP syntax, PHPCS, PHPStan, and ESLint on `src/`. It does **not** run PHPUnit.
 

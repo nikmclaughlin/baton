@@ -51,7 +51,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for pull request prerequisites and comman
 
 ### Building the editor UI
 
-Only needed when changing files under `src/`. The workflow editor is a React bundle built with `@wordpress/scripts`:
+Builds run on Node **24**, the version CI pins (`nvm use` picks it up from the repo's `.nvmrc`). Only needed when changing files under `src/`. The workflow editor is a React bundle built with `@wordpress/scripts`:
 
 ```bash
 cd wp-content/plugins/baton   # or your clone path
