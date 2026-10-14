@@ -305,6 +305,134 @@ function baton_tests_get_process_order_args(): array {
 /**
  * Register test ability category on the required hook.
  */
+
+function baton_tests_get_multiply_ability_args(): array {
+	return array(
+		'label'               => 'Multiply',
+		'description'         => 'Multiplies number by factor for Baton tests.',
+		'category'            => 'baton-test',
+		'input_schema'        => array(
+			'type'       => 'object',
+			'properties' => array(
+				'number'  => array( 'type' => 'integer' ),
+				'factor'  => array( 'type' => 'integer' ),
+			),
+		),
+		'output_schema'       => array(
+			'type'       => 'object',
+			'properties' => array(
+				'result' => array( 'type' => 'integer' ),
+			),
+		),
+		'execute_callback'    => static function ( $input = null ) {
+			$number = is_array( $input ) && isset( $input['number'] ) ? (int) $input['number'] : 0;
+			$factor = is_array( $input ) && isset( $input['factor'] ) ? (int) $input['factor'] : 1;
+			return array( 'result' => $number * $factor );
+		},
+		'permission_callback' => static function (): bool {
+			return true;
+		},
+		'meta'                => array(
+			'show_in_rest' => false,
+		),
+	);
+}
+
+/**
+ * Args for a scalar "uppercase" ability that takes a string and returns it uppercased.
+ *
+ * @return array<string, mixed>
+ */
+function baton_tests_get_uppercase_ability_args(): array {
+	return array(
+		'label'               => 'Uppercase',
+		'description'         => 'Uppercases a string for Baton tests.',
+		'category'            => 'baton-test',
+		'input_schema'        => array( 'type' => 'string' ),
+		'output_schema'       => array( 'type' => 'string' ),
+		'execute_callback'    => static function ( $input = null ) {
+			return is_string( $input ) ? strtoupper( $input ) : '';
+		},
+		'permission_callback' => static function (): bool {
+			return true;
+		},
+		'meta'                => array(
+			'show_in_rest' => false,
+		),
+	);
+}
+
+/**
+ * Args for an "append_tag" ability that takes {text, tag} and returns {text: "text [tag]"}.
+ *
+ * @return array<string, mixed>
+ */
+function baton_tests_get_append_tag_ability_args(): array {
+	return array(
+		'label'               => 'Append Tag',
+		'description'         => 'Appends a tag to text for Baton tests.',
+		'category'            => 'baton-test',
+		'input_schema'        => array(
+			'type'       => 'object',
+			'properties' => array(
+				'text' => array( 'type' => 'string' ),
+				'tag'  => array( 'type' => 'string' ),
+			),
+		),
+		'output_schema'       => array(
+			'type'       => 'object',
+			'properties' => array(
+				'text' => array( 'type' => 'string' ),
+			),
+		),
+		'execute_callback'    => static function ( $input = null ) {
+			$text = is_array( $input ) && isset( $input['text'] ) ? (string) $input['text'] : '';
+			$tag  = is_array( $input ) && isset( $input['tag'] ) ? (string) $input['tag'] : '';
+			return array( 'text' => $text . ' [' . $tag . ']' );
+		},
+		'permission_callback' => static function (): bool {
+			return true;
+		},
+		'meta'                => array(
+			'show_in_rest' => false,
+		),
+	);
+}
+
+/**
+ * Args for a "fail" ability that always returns a WP_Error.
+ *
+ * @return array<string, mixed>
+ */
+function baton_tests_get_fail_ability_args(): array {
+	return array(
+		'label'               => 'Fail',
+		'description'         => 'Always fails for Baton tests.',
+		'category'            => 'baton-test',
+		'input_schema'        => array(
+			'type'                 => 'object',
+			'additionalProperties' => true,
+		),
+		'output_schema'       => array(
+			'type'                 => 'object',
+			'additionalProperties' => true,
+		),
+		'execute_callback'    => static function ( $input = null ) {
+			return new WP_Error( 'test_fail', 'Ability intentionally failed.' );
+		},
+		'permission_callback' => static function (): bool {
+			return true;
+		},
+		'meta'                => array(
+			'show_in_rest' => false,
+		),
+	);
+}
+
+/**
+ * Register test ability category on the required hook.
+ */
+
 function baton_tests_register_ability_category(): void {
 	if ( ! function_exists( 'wp_register_ability_category' ) ) {
 		return;
@@ -315,6 +443,10 @@ function baton_tests_register_ability_category(): void {
 
 /**
  * Register echo ability used by runner tests on the required hook.
+
+
+/**
+ * Register echo ability used by runner tests on the required hook.
  */
 function baton_tests_register_abilities(): void {
 	if ( ! function_exists( 'wp_register_ability' ) ) {
@@ -322,6 +454,10 @@ function baton_tests_register_abilities(): void {
 	}
 
 	wp_register_ability( 'baton-test/echo', baton_tests_get_echo_ability_args() );
+	wp_register_ability( 'baton-test/multiply', baton_tests_get_multiply_ability_args() );
+	wp_register_ability( 'baton-test/uppercase', baton_tests_get_uppercase_ability_args() );
+	wp_register_ability( 'baton-test/append-tag', baton_tests_get_append_tag_ability_args() );
+	wp_register_ability( 'baton-test/fail', baton_tests_get_fail_ability_args() );
 	wp_register_ability( 'baton-test/order-producer', baton_tests_get_order_producer_args() );
 	wp_register_ability( 'baton-test/orders-producer', baton_tests_get_orders_producer_args() );
 	wp_register_ability( 'baton-test/order-consumer', baton_tests_get_order_consumer_args() );
@@ -334,6 +470,7 @@ function baton_tests_register_abilities(): void {
  *
  * @return string Empty on success, otherwise an error message for assertions.
  */
+
 function baton_tests_ensure_abilities_registered(): string {
 	if ( ! did_action( 'init' ) ) {
 		return 'WordPress init has not fired.';
@@ -362,51 +499,26 @@ function baton_tests_ensure_abilities_registered(): string {
 		}
 	}
 
-	if ( ! $registry->is_registered( 'baton-test/echo' ) ) {
-		$ability = $registry->register( 'baton-test/echo', baton_tests_get_echo_ability_args() );
+	$abilities = array(
+		'baton-test/echo'      => 'baton_tests_get_echo_ability_args',
+		'baton-test/multiply'   => 'baton_tests_get_multiply_ability_args',
+		'baton-test/uppercase'  => 'baton_tests_get_uppercase_ability_args',
+		'baton-test/append-tag' => 'baton_tests_get_append_tag_ability_args',
+		'baton-test/fail'      => 'baton_tests_get_fail_ability_args',
+		'baton-test/order-producer' => 'baton_tests_get_order_producer_args',
+		'baton-test/orders-producer' => 'baton_tests_get_orders_producer_args',
+		'baton-test/order-consumer' => 'baton_tests_get_order_consumer_args',
+		'baton-test/order-ids-consumer' => 'baton_tests_get_order_ids_consumer_args',
+		'baton-test/process-order' => 'baton_tests_get_process_order_args',
+	);
 
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/echo.';
-		}
-	}
+	foreach ( $abilities as $slug => $args_fn ) {
+		if ( ! $registry->is_registered( $slug ) ) {
+			$ability = $registry->register( $slug, $args_fn() );
 
-	if ( ! $registry->is_registered( 'baton-test/order-producer' ) ) {
-		$ability = $registry->register( 'baton-test/order-producer', baton_tests_get_order_producer_args() );
-
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/order-producer.';
-		}
-	}
-
-	if ( ! $registry->is_registered( 'baton-test/orders-producer' ) ) {
-		$ability = $registry->register( 'baton-test/orders-producer', baton_tests_get_orders_producer_args() );
-
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/orders-producer.';
-		}
-	}
-
-	if ( ! $registry->is_registered( 'baton-test/order-consumer' ) ) {
-		$ability = $registry->register( 'baton-test/order-consumer', baton_tests_get_order_consumer_args() );
-
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/order-consumer.';
-		}
-	}
-
-	if ( ! $registry->is_registered( 'baton-test/order-ids-consumer' ) ) {
-		$ability = $registry->register( 'baton-test/order-ids-consumer', baton_tests_get_order_ids_consumer_args() );
-
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/order-ids-consumer.';
-		}
-	}
-
-	if ( ! $registry->is_registered( 'baton-test/process-order' ) ) {
-		$ability = $registry->register( 'baton-test/process-order', baton_tests_get_process_order_args() );
-
-		if ( ! $ability ) {
-			return 'Failed to register ability baton-test/process-order.';
+			if ( ! $ability ) {
+				return 'Failed to register ability ' . $slug . '.';
+			}
 		}
 	}
 
