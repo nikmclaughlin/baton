@@ -32,6 +32,7 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 		if ( ! function_exists( 'wp_get_ability' ) || ! wp_get_ability( 'baton-test/echo' ) ) {
 			$this->fail( 'Test ability baton-test/echo is not registered after ensure.' );
 		}
+
 	}
 
 	public function test_cycle_detection(): void {
@@ -431,6 +432,9 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 	}
 
 	public function test_cycle_detection_indirect(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		// Workflow 1 calls workflow 2 which calls workflow 1.
 		$definition_2 = array(
 			'steps' => array(
@@ -497,6 +501,7 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 	}
 
 	public function test_run_unregistered_ability(): void {
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::get_registered' );
 		$definition = array(
 			'steps' => array(
 				array(
@@ -769,6 +774,9 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 	}
 
 	public function test_nested_workflow_execution(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		// Inner workflow: echo with static input.
 		$inner_definition = array(
 			'steps' => array(
@@ -786,6 +794,10 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 			)
 		);
 		Baton_Workflow_CPT::save_definition( $inner_id, $inner_definition );
+		// Re-fire the registry init so the just-saved workflow ability registers (WP 6.9 gate).
+		// The re-fire re-runs the fixtures' priority-0 registration callback, double-registering abilities.
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::register' );
+		do_action( 'wp_abilities_api_init' );
 
 		// Outer workflow calls baton/workflow-{inner_id}.
 		$outer_definition = array(
@@ -810,6 +822,9 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 	}
 
 	public function test_nested_workflow_passes_input_as_initial_input(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		// Inner workflow: echo (returns its input).
 		$inner_definition = array(
 			'steps' => array(
@@ -827,6 +842,10 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 			)
 		);
 		Baton_Workflow_CPT::save_definition( $inner_id, $inner_definition );
+		// Re-fire the registry init so the just-saved workflow ability registers (WP 6.9 gate).
+		// The re-fire re-runs the fixtures' priority-0 registration callback, double-registering abilities.
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::register' );
+		do_action( 'wp_abilities_api_init' );
 
 		// Outer workflow passes input to nested workflow.
 		$outer_definition = array(
@@ -848,6 +867,7 @@ class Test_Workflow_Runner extends WP_UnitTestCase {
 	}
 
 	public function test_nested_workflow_not_found_returns_error(): void {
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::get_registered' );
 		$definition = array(
 			'steps' => array(
 				array(

@@ -10,7 +10,6 @@ declare( strict_types=1 );
  */
 class Test_Workflow_Cpt extends WP_UnitTestCase {
 
-
 	public function test_sanitize_definition_sanitizes_initial_input_and_step_input(): void {
 		$raw = array(
 			'initial_input' => array(
@@ -348,6 +347,9 @@ class Test_Workflow_Cpt extends WP_UnitTestCase {
 	}
 
 	public function test_save_and_get_definition_round_trip(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$post_id = self::factory()->post->create(
 			array(
 				'post_type'  => Baton_Workflow_CPT::POST_TYPE,
@@ -391,6 +393,9 @@ class Test_Workflow_Cpt extends WP_UnitTestCase {
 	}
 
 	public function test_get_definition_returns_default_when_no_meta(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$post_id = self::factory()->post->create(
 			array(
 				'post_type'  => Baton_Workflow_CPT::POST_TYPE,
@@ -407,6 +412,10 @@ class Test_Workflow_Cpt extends WP_UnitTestCase {
 	}
 
 	public function test_get_definition_returns_default_for_non_array_meta(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
+
 		$post_id = self::factory()->post->create(
 			array(
 				'post_type'  => Baton_Workflow_CPT::POST_TYPE,

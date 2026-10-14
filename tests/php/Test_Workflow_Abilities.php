@@ -27,6 +27,7 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 		if ( '' !== $registration_error ) {
 			$this->fail( $registration_error );
 		}
+
 	}
 
 	// ──────────────────────────────────────────────────────────────
@@ -82,6 +83,9 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 	// ──────────────────────────────────────────────────────────────
 
 	public function test_execute_workflow_ability_returns_last_step_output(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$definition = array(
 			'steps' => array(
 				array(
@@ -108,6 +112,9 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 	}
 
 	public function test_execute_workflow_ability_passes_input_as_initial_input(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$definition = array(
 			'initial_input' => array( 'existing' => 'val' ),
 			'steps'         => array(
@@ -139,6 +146,10 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 	}
 
 	public function test_execute_workflow_ability_returns_wp_error_on_failure(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::get_registered' );
 		$definition = array(
 			'steps' => array(
 				array(
@@ -164,6 +175,9 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 	}
 
 	public function test_execute_workflow_ability_empty_steps_returns_wp_error(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$post_id = self::factory()->post->create(
 			array(
 				'post_type'  => Baton_Workflow_CPT::POST_TYPE,
@@ -180,6 +194,9 @@ class Test_Workflow_Abilities extends WP_UnitTestCase {
 	}
 
 	public function test_execute_workflow_ability_null_input_uses_stored_initial_input(): void {
+		// Saving a workflow re-registers its ability outside wp_abilities_api_init (WP 6.9 gate).
+		$this->setExpectedIncorrectUsage( 'WP_Abilities_Registry::unregister' );
+		$this->setExpectedIncorrectUsage( 'wp_register_ability' );
 		$definition = array(
 			'initial_input' => array( 'stored' => 'value' ),
 			'steps'         => array(

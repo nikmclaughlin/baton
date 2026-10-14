@@ -214,10 +214,14 @@ final class Baton_Workflow_CPT {
 	/**
 	 * Sanitize definition from request/JSON.
 	 *
-	 * @param array<string, mixed> $raw Raw definition.
+	 * @param mixed $raw Raw definition (may be a non-array from corrupt meta).
 	 * @return array<string, mixed>
 	 */
-	public static function sanitize_definition( array $raw ) {
+	public static function sanitize_definition( $raw ) {
+		if ( ! is_array( $raw ) ) {
+			return self::default_definition();
+		}
+
 		$definition = self::default_definition();
 
 		if ( isset( $raw['initial_input'] ) ) {
