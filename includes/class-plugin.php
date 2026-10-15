@@ -66,6 +66,7 @@ final class Baton_Plugin {
 
 		Baton_Workflow_CPT::register();
 		Baton_Workflow_Abilities::register();
+		Baton_Utility_Abilities::register();
 		Baton_Admin::register();
 		Baton_Rest_Controller::register();
 	}
