@@ -1,6 +1,6 @@
 <?php
 /**
- * Uninstall Baton — remove workflow posts and definition meta.
+ * Uninstall Baton — remove workflows, definition meta, and saved-value rows.
  *
  * @package Baton
  */
@@ -23,3 +23,12 @@ if ( is_array( $baton_workflow_post_ids ) ) {
 		wp_delete_post( (int) $baton_workflow_post_id, true );
 	}
 }
+
+/**
+ * Drop the saved-values table (rows go with it; the workflow posts above are
+ * already deleted).
+ */
+global $wpdb;
+
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall-time DDL; identifier built from $wpdb->prefix (plugin classes are not loaded here).
+$wpdb->query( 'DROP TABLE IF EXISTS ' . $wpdb->prefix . 'baton_saved_values' );

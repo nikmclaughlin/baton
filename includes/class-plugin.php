@@ -88,6 +88,9 @@ final class Baton_Plugin {
 		Baton_Workflow_CPT::register();
 		flush_rewrite_rules();
 
+		// Saved-value storage (dbDelta creates/migrates the custom table).
+		Baton_Saved_Values::install();
+
 		// Register workflow abilities after CPT exists.
 		if ( did_action( 'wp_abilities_api_init' ) ) {
 			Baton_Workflow_Abilities::register_all_workflows();

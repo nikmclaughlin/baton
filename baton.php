@@ -33,6 +33,7 @@ require_once BATON_DIR . 'includes/class-input-mapper.php';
 require_once BATON_DIR . 'includes/class-workflow-cpt.php';
 require_once BATON_DIR . 'includes/class-workflow-runner.php';
 require_once BATON_DIR . 'includes/class-workflow-abilities.php';
+require_once BATON_DIR . 'includes/class-saved-values.php';
 require_once BATON_DIR . 'includes/admin/class-workflow-list-table.php';
 require_once BATON_DIR . 'includes/admin/class-admin.php';
 require_once BATON_DIR . 'includes/class-rest-controller.php';
