@@ -20,6 +20,10 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` at `wp_abilities_api_init` only (see WP 6.9 note below) |
 | Nested workflows | Runner passes a `workflow_stack` and rejects cycles |
 | Admin catalog | `Baton_Ability_Catalog` + `Baton_Schema_Paths` expose schemas, I/O summaries, and mappable paths to JS |
+| Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
+| Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
+| Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
+| Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
 
 ### Workflow definition (meta JSON)
 
@@ -76,6 +80,8 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 - **Save paths**: the classic form POST (`handle_save_post`) and the REST endpoint (`Baton_Rest_Controller::handle_save`) both funnel into `Baton_Admin::save_workflow_post()` → `persist_workflow()`, which writes definition + pruned layout and re-registers the ability when published.
 - **REST endpoints** (`includes/class-rest-controller.php`, namespace `baton/v1`): `POST /baton/v1/workflows` (save; JSON body, same fields as the form POST, returns `{post_id, edit_url, message}`) and `POST /baton/v1/workflows/{id}/run` (JSON body `{initial_input}`; returns the full runner report `{success, steps, error}` — step failures stay HTTP 200 in-band, request-level failures use 400/403/404). `check_permissions()` requires `manage_options`, plus a valid `X-WP-Nonce` (`wp_rest`) for cookie-authenticated requests, matching core's `rest_cookie_check_errors()` semantics.
 - **REST save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `POST /baton/v1/workflows` (JSON body + `X-WP-Nonce`, no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
+- **Saved-values viewer** (`includes/admin/class-run-viewer.php`): server-rendered below the run panel on the edit screen; `Baton_Run_Viewer::maybe_handle_action()` handles `baton_delete_value` / `baton_delete_run` GET row actions (core list-table convention) with per-target nonces and `manage_options` on `admin_init`; deletes are workflow-scoped (`delete_run_for_workflow`). Values are JSON-decoded by storage and escaped/truncated at render.
+- **Context-field hiding**: runner-filled `run_id`/`workflow_id`/`step_id` properties stay in the registered schemas (runner injection depends on them) but `Baton_Schema_Paths::is_context_property()` strips them from mappable paths, and `Baton_Ability_Catalog::format_ability()` hides them from `input_fields`, `input_targets`, `example_input`, and input summaries — so all step input UIs stay user-only.
 
 ### Editor views (Phase 0–3)
 
@@ -95,12 +101,19 @@ includes/
   class-workflow-cpt.php  # CPT + meta get/save/sanitize (definition + layout)
   class-workflow-runner.php
   class-workflow-abilities.php
+  class-saved-values.php  # Custom-table storage for save/state/log rows
+  class-utility-abilities.php  # baton-utility category + shared schema helpers
+  class-save-output-ability.php  # baton/save-output "Save output"
+  class-save-state-ability.php   # baton/save-state "Keep latest"
+  class-load-output-ability.php  # baton/load-output "Load saved value"
+  class-log-ability.php          # baton/log "Log entry"
   class-input-mapper.php  # Dot paths, scalar vs object input
   class-schema-paths.php  # I/O summaries, path catalogs for UI
   class-ability-catalog.php
   class-rest-controller.php  # POST /baton/v1/workflows[/{id}/run]
   admin/
     class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
+    class-run-viewer.php  # Saved values & logs viewer + delete actions
     class-workflow-list-table.php
 src/
   index.js
@@ -112,12 +125,12 @@ src/
 build/                    # Compiled editor (run npm run build after src changes)
 assets/
   baton-editor.css        # Editor + snackbar styles (lint: npm run lint:css)
-  admin.css               # List/run styles
+  admin.css               # List/run/viewer styles
   admin-run.js
   images/baton-banner.png
 tests/
   bootstrap.php           # wp-env phpunit bootstrap
-  php/                    # Test_* classes (incl. Test_Rest_Save_Workflow)
+  php/                    # Test_* classes (incl. Test_Saved_Values, Test_Run_Viewer)
   php/fixtures/           # Registered test abilities for integration tests
 ```
 
@@ -133,7 +146,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (80 tests)
+npm run test:php               # wp-env phpunit (258 tests)
 ```
 
 ### Node/npm environment (local/CI parity)
@@ -160,6 +173,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 6. **Tests** — `composer test` via wp-env (`npm run test:php`); manual smoke: save workflow, run from edit screen, nest `baton/workflow-{id}` in another workflow.
 7. **WP 6.9 registration gate** — Save-time ability registration is a `_doing_it_wrong` no-op outside `wp_abilities_api_init` (see the note above); when writing tests around workflow saves, expect those notices and don't assert the ability exists immediately after save.
 8. **CSS** — `npm run lint:css` uses `wp-scripts lint-style`; stylelint fixes are safe (`lint-style --fix`). Dead selectors: verify against `src/`, `includes/`, `admin-run.js`, *and* `build/index.js` before removing (modifiers can be built dynamically).
+9. **Runner-filled context fields** — utility abilities mark `run_id`/`workflow_id`/`step_id` input properties with `'x-baton' => 'context'`; the runner injects them when the schema declares them, and `Baton_Schema_Paths::is_context_property()` hides them from mappable paths and editor input UIs. Never ask users to set these fields, and never remove them from the schemas.
 
 ## Known gaps / roadmap
 
@@ -167,7 +181,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 - **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
-- Database/transient integration for persisting workflow output.
+- Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.
 - Replace list table with DataViews when appropriate in core.
 - User-facing copy pass on mapper warning strings.
