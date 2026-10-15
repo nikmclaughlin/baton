@@ -41,6 +41,7 @@ require_once BATON_DIR . 'includes/class-load-output-ability.php';
 require_once BATON_DIR . 'includes/class-log-ability.php';
 require_once BATON_DIR . 'includes/admin/class-workflow-list-table.php';
 require_once BATON_DIR . 'includes/admin/class-admin.php';
+require_once BATON_DIR . 'includes/admin/class-run-viewer.php';
 require_once BATON_DIR . 'includes/class-rest-controller.php';
 require_once BATON_DIR . 'includes/class-plugin.php';
 

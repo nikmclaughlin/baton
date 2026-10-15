@@ -196,6 +196,85 @@ final class Baton_Saved_Values {
 			return null;
 		}
 
+		return self::format_row( $row );
+	}
+
+	/**
+	 * Every stored row for one workflow, newest-first.
+	 *
+	 * Read method for the admin viewer (save/state/log rows share the table,
+	 * so no kind filter here — the viewer renders one unified timeline).
+	 *
+	 * @param int $workflow_id Workflow post ID.
+	 * @return array<int, array<string, mixed>> Rows (newest-first, decoded `value`).
+	 */
+	public static function rows_for_workflow( int $workflow_id ): array {
+		global $wpdb;
+
+		$sql = 'SELECT * FROM ' . self::table_name() . ' WHERE workflow_id = %d ORDER BY id DESC';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table identifier built from $wpdb->prefix; values are prepared.
+		$results = $wpdb->get_results( $wpdb->prepare( $sql, $workflow_id ), ARRAY_A );
+
+		if ( ! is_array( $results ) ) {
+			return array();
+		}
+
+		return array_map( array( self::class, 'format_row' ), $results );
+	}
+
+	/**
+	 * One row by id (any kind).
+	 *
+	 * @param int $id Row id.
+	 * @return array<string, mixed>|null Row (decoded `value`) or null when not found.
+	 */
+	public static function get_row( int $id ): ?array {
+		global $wpdb;
+
+		$sql = 'SELECT * FROM ' . self::table_name() . ' WHERE id = %d';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table identifier built from $wpdb->prefix; values are prepared.
+		$row = $wpdb->get_row( $wpdb->prepare( $sql, $id ), ARRAY_A );
+
+		if ( ! is_array( $row ) ) {
+			return null;
+		}
+
+		return self::format_row( $row );
+	}
+
+	/**
+	 * Whether a run has at least one row within a workflow.
+	 *
+	 * Used by the viewer to scope "delete run" to the workflow being viewed.
+	 *
+	 * @param string $run_id      Runner-generated execution ID.
+	 * @param int    $workflow_id Workflow post ID.
+	 * @return bool
+	 */
+	public static function has_run( string $run_id, int $workflow_id ): bool {
+		global $wpdb;
+
+		if ( '' === $run_id ) {
+			return false;
+		}
+
+		$sql = 'SELECT id FROM ' . self::table_name() . ' WHERE run_id = %s AND workflow_id = %d LIMIT 1';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Table identifier built from $wpdb->prefix; values are prepared.
+		$existing = $wpdb->get_var( $wpdb->prepare( $sql, $run_id, $workflow_id ) );
+
+		return null !== $existing && false !== $existing;
+	}
+
+	/**
+	 * Normalize a raw table row for readers (int casts, decoded value).
+	 *
+	 * @param array<string, mixed> $row Raw ARRAY_A row.
+	 * @return array<string, mixed>
+	 */
+	private static function format_row( array $row ): array {
 		return array(
 			'id'          => (int) $row['id'],
 			'kind'        => (string) $row['kind'],
@@ -234,6 +313,37 @@ final class Baton_Saved_Values {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Value storage CRUD; no cache API for this table.
 		$deleted = $wpdb->delete( self::table_name(), array( 'run_id' => $run_id ), array( '%s' ) );
+
+		return is_int( $deleted ) ? $deleted : 0;
+	}
+
+	/**
+	 * Delete a run's rows scoped to one workflow.
+	 *
+	 * Viewer delete actions are workflow-scoped: only rows displayed in the
+	 * viewed workflow's timeline are removed, even if a run_id also appears
+	 * elsewhere (e.g. rows written from outside a runner execution).
+	 *
+	 * @param string $run_id      Runner-generated execution ID.
+	 * @param int    $workflow_id Workflow post ID.
+	 * @return int Number of rows deleted.
+	 */
+	public static function delete_run_for_workflow( string $run_id, int $workflow_id ): int {
+		global $wpdb;
+
+		if ( '' === $run_id ) {
+			return 0;
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Value storage CRUD; no cache API for this table.
+		$deleted = $wpdb->delete(
+			self::table_name(),
+			array(
+				'run_id'      => $run_id,
+				'workflow_id' => $workflow_id,
+			),
+			array( '%s', '%d' )
+		);
 
 		return is_int( $deleted ) ? $deleted : 0;
 	}

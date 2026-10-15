@@ -353,4 +353,86 @@ class Test_Saved_Values extends WP_UnitTestCase {
 		$this->assertSame( 0, Baton_Saved_Values::delete_run( 'run-a' ) );
 		$this->assertNotNull( Baton_Saved_Values::find( 's2', 7 ) );
 	}
+
+	/**
+	 * rows_for_workflow returns every kind, newest-first, scoped to the workflow.
+	 */
+	public function test_rows_for_workflow_newest_first_and_scoped(): void {
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 7, 'run-a', 'first', 'v', 'step-0' );
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_LOG, 7, 'run-a', 'second', array( 'message' => 'm' ), 'step-1' );
+		Baton_Saved_Values::upsert_state( 9, 'run-b', 'cursor', 'w9', '' );
+		Baton_Saved_Values::upsert_state( 7, 'run-c', 'cursor', 'w7', '' );
+
+		$rows = Baton_Saved_Values::rows_for_workflow( 7 );
+
+		$this->assertCount( 3, $rows );
+
+		// Newest id first across kinds.
+		$this->assertSame( array( 'cursor', 'second', 'first' ), array_column( $rows, 'label' ) );
+		$this->assertSame( array( 'state', 'log', 'save' ), array_column( $rows, 'kind' ) );
+
+		// Formatted like find(): int casts + decoded value.
+		$this->assertSame( 7, $rows[0]['workflow_id'] );
+		$this->assertSame( 'w7', $rows[0]['value'] );
+
+		// Other workflows are invisible.
+		$rows_9 = Baton_Saved_Values::rows_for_workflow( 9 );
+		$this->assertSame( array( 'cursor' ), array_column( $rows_9, 'label' ) );
+		$this->assertSame( 'w9', $rows_9[0]['value'] );
+		$this->assertSame( array(), Baton_Saved_Values::rows_for_workflow( 123 ) );
+	}
+
+	/**
+	 * get_row fetches any row by id, or null.
+	 */
+	public function test_get_row_by_id(): void {
+		$saved = Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 7, 'run-a', 'label', array( 'x' => 'y' ), 's' );
+
+		$row = Baton_Saved_Values::get_row( (int) $saved['id'] );
+
+		$this->assertNotNull( $row );
+		$this->assertSame( 'save', $row['kind'] );
+		$this->assertSame( 7, $row['workflow_id'] );
+		$this->assertSame( 'label', $row['label'] );
+		$this->assertSame( 'run-a', $row['run_id'] );
+		$this->assertSame( 's', $row['step_id'] );
+		$this->assertSame( array( 'x' => 'y' ), $row['value'] );
+		$this->assertNotSame( '', $row['created_at'] );
+
+		$this->assertNull( Baton_Saved_Values::get_row( 999999 ) );
+	}
+
+	/**
+	 * has_run checks run existence within one workflow.
+	 */
+	public function test_has_run_scopes_to_workflow(): void {
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 7, 'run-a', 's', 'v', '' );
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 9, 'run-b', 's', 'v', '' );
+
+		$this->assertTrue( Baton_Saved_Values::has_run( 'run-a', 7 ) );
+		$this->assertTrue( Baton_Saved_Values::has_run( 'run-b', 9 ) );
+		$this->assertFalse( Baton_Saved_Values::has_run( 'run-a', 9 ) );
+		$this->assertFalse( Baton_Saved_Values::has_run( 'run-b', 7 ) );
+		$this->assertFalse( Baton_Saved_Values::has_run( 'missing', 7 ) );
+		$this->assertFalse( Baton_Saved_Values::has_run( '', 7 ) );
+	}
+
+	/**
+	 * delete_run_for_workflow removes only that workflow's rows for the run.
+	 */
+	public function test_delete_run_for_workflow_is_scoped(): void {
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 7, 'run-a', 's1', 'v', '' );
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_LOG, 7, 'run-a', 'l1', array( 'message' => 'm' ), '' );
+		// Same run id appears for another workflow (e.g. rows written from
+		// outside a runner execution); the viewer delete must not touch it.
+		Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 9, 'run-a', 's-other', 'v', '' );
+
+		$this->assertSame( 2, Baton_Saved_Values::delete_run_for_workflow( 'run-a', 7 ) );
+
+		$this->assertSame( 0, $this->row_count( null, null, 7 ) );
+		$this->assertSame( 1, $this->row_count( null, 's-other', 9 ) );
+
+		$this->assertSame( 0, Baton_Saved_Values::delete_run_for_workflow( '', 9 ) );
+		$this->assertSame( 0, Baton_Saved_Values::delete_run_for_workflow( 'run-missing', 9 ) );
+	}
 }

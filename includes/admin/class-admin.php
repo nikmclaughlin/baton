@@ -30,6 +30,9 @@ final class Baton_Admin {
 		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
 		add_action( 'admin_init', array( self::class, 'maybe_handle_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_assets' ) );
+
+		// Saved-value viewer on the edit screen (delete actions on admin_init).
+		Baton_Run_Viewer::register();
 	}
 
 	/**
@@ -210,6 +213,7 @@ final class Baton_Admin {
 
 		if ( $post_id > 0 ) {
 			self::render_run_panel( $post_id, $definition );
+			self::render_saved_values_panel( $post_id );
 		}
 
 		echo '</div>';
@@ -250,6 +254,15 @@ final class Baton_Admin {
 		echo '<p><button type="button" class="button button-primary" id="aw-run-workflow" data-workflow-id="' . esc_attr( (string) $post_id ) . '" data-label="' . esc_attr( $run_label ) . '">' . esc_html( $run_label ) . '</button></p>';
 		echo '<div id="aw-run-results" class="aw-run-results" hidden></div>';
 		echo '</div>';
+	}
+
+	/**
+	 * Saved values & logs panel below the run panel (viewer for Baton_Saved_Values).
+	 *
+	 * @param int $post_id Workflow post ID.
+	 */
+	private static function render_saved_values_panel( int $post_id ): void {
+		Baton_Run_Viewer::render( $post_id );
 	}
 
 	/**
