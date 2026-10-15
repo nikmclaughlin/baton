@@ -461,4 +461,72 @@ class Test_Utility_Abilities extends WP_UnitTestCase {
 		$this->assertNotInstanceOf( WP_Error::class, $log );
 		$this->assertCount( 2, $log );
 	}
+
+	/**
+	 * Editor catalog verification: the utilities surface under "Baton
+	 * Utilities" with clean field/target options, and the runner-filled
+	 * context fields are hidden from every step input UI — while the
+	 * registered schemas keep them (runner injection depends on them).
+	 */
+	public function test_editor_catalog_hides_runner_context_fields(): void {
+		$formatted = array();
+		foreach ( array_keys( self::utility_slugs() ) as $slug ) {
+			$ability            = wp_get_ability( $slug );
+			$formatted[ $slug ] = Baton_Ability_Catalog::format_ability( $ability );
+		}
+
+		$context_keys = array( 'run_id', 'workflow_id', 'step_id' );
+		$expected_visible = array(
+			'baton/save-output' => array( 'label', 'value' ),
+			'baton/save-state'  => array( 'label', 'value' ),
+			'baton/load-output' => array( 'label', 'from_run_id' ),
+			'baton/log'         => array( 'message', 'context' ),
+		);
+		$expected_summary = array(
+			'baton/save-output' => 'Object · label, value',
+			'baton/save-state'  => 'Object · label, value',
+			'baton/load-output' => 'Object · label, from_run_id',
+			'baton/log'         => 'Object · message, context',
+		);
+
+		foreach ( $formatted as $slug => $catalog ) {
+			$visible = $expected_visible[ $slug ];
+
+			// Category + grouping: the editor's <optgroup> label.
+			$this->assertSame( 'Baton Utilities', $catalog['category'], $slug );
+
+			// Step input UIs (input_fields/targets/example) hide context fields.
+			$this->assertSame(
+				$visible,
+				$catalog['input_fields'],
+				$slug . ' input_fields'
+			);
+			$this->assertSame(
+				$visible,
+				array_column( $catalog['input_targets'], 'value' ),
+				$slug . ' input_targets'
+			);
+			$this->assertSame(
+				$expected_summary[ $slug ],
+				$catalog['input_summary']['summary'],
+				$slug . ' input summary'
+			);
+			foreach ( $context_keys as $key ) {
+				$this->assertArrayNotHasKey( $key, $catalog['example_input'], $slug . ' example input' );
+			}
+
+			// The schemas keep the context fields (runner injection).
+			$schema = wp_get_ability( $slug )->get_input_schema();
+			foreach ( $context_keys as $key ) {
+				if ( ! array_key_exists( $key, $schema['properties'] ) ) {
+					continue;
+				}
+				$this->assertSame(
+					'context',
+					$schema['properties'][ $key ]['x-baton'],
+					$slug . ' schema keeps the context marker for ' . $key
+				);
+			}
+		}
+	}
 }

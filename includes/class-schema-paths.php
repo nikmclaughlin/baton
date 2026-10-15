@@ -105,7 +105,7 @@ final class Baton_Schema_Paths {
 		}
 
 		if ( 'object' === $kind ) {
-			$keys    = Baton_Input_Mapper::schema_property_keys( $schema );
+			$keys    = self::visible_property_keys( $schema );
 			$preview = self::preview_keys( $keys, 4 );
 
 			return array(
@@ -197,6 +197,43 @@ final class Baton_Schema_Paths {
 	}
 
 	/**
+	 * Whether a schema property is a runner-filled context field.
+	 *
+	 * Baton utility abilities declare `run_id`, `workflow_id`, and `step_id`
+	 * input properties with an `x-baton: context` marker: the runner injects
+	 * them at execution time, so they are hidden from editor input UIs and
+	 * mappable-path catalogs (the schema keeps them for the runner).
+	 *
+	 * @param array<string, mixed> $prop_schema Property schema.
+	 * @return bool
+	 */
+	public static function is_context_property( array $prop_schema ): bool {
+		return isset( $prop_schema['x-baton'] ) && 'context' === $prop_schema['x-baton'];
+	}
+
+	/**
+	 * Top-level property keys minus runner-filled context fields.
+	 *
+	 * @param array<string, mixed> $schema JSON Schema fragment.
+	 * @return array<int, string>
+	 */
+	public static function visible_property_keys( array $schema ): array {
+		if ( ! isset( $schema['properties'] ) || ! is_array( $schema['properties'] ) ) {
+			return array();
+		}
+
+		$keys = array();
+		foreach ( $schema['properties'] as $key => $prop_schema ) {
+			if ( is_array( $prop_schema ) && self::is_context_property( $prop_schema ) ) {
+				continue;
+			}
+			$keys[] = (string) $key;
+		}
+
+		return $keys;
+	}
+
+	/**
 	 * Recursively enumerate dot paths for any JSON schema.
 	 *
 	 * Exposes both intermediate object/array paths (e.g. "order") and their
@@ -258,6 +295,11 @@ final class Baton_Schema_Paths {
 
 		foreach ( $schema['properties'] as $key => $prop_schema ) {
 			if ( ! is_array( $prop_schema ) ) {
+				continue;
+			}
+
+			// Runner-filled context fields are never user-mappable.
+			if ( self::is_context_property( $prop_schema ) ) {
 				continue;
 			}
 

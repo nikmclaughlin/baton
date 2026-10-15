@@ -68,7 +68,7 @@ final class Baton_Ability_Catalog {
 			'output_schema'     => $output_schema,
 			'input_is_scalar'   => $is_scalar,
 			'scalar_input_type' => $is_scalar ? Baton_Input_Mapper::get_scalar_type( $input_schema ) : '',
-			'input_fields'      => Baton_Input_Mapper::schema_property_keys( $input_schema ),
+			'input_fields'      => Baton_Schema_Paths::visible_property_keys( $input_schema ),
 			'output_fields'     => Baton_Input_Mapper::schema_property_keys( $output_schema ),
 			'input_summary'     => Baton_Schema_Paths::io_summary( $input_schema ),
 			'output_summary'    => Baton_Schema_Paths::io_summary( $output_schema ),
@@ -145,6 +145,12 @@ final class Baton_Ability_Catalog {
 			if ( ! is_array( $prop_schema ) ) {
 				continue;
 			}
+
+			// Runner-filled context fields never appear in user-editable input.
+			if ( Baton_Schema_Paths::is_context_property( $prop_schema ) ) {
+				continue;
+			}
+
 			$input[ $prop_name ] = self::get_example_value( $prop_schema );
 		}
 
