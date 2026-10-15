@@ -430,6 +430,43 @@ function baton_tests_get_fail_ability_args(): array {
 }
 
 /**
+ * Args for a "context receiver" ability that declares the runner-filled
+ * context fields (run_id, workflow_id, step_id) so context injection
+ * can be observed via its echoed input.
+ *
+ * @return array<string, mixed>
+ */
+function baton_tests_get_context_receiver_args(): array {
+	return array(
+		'label'               => 'Context Receiver',
+		'description'         => 'Echoes its input, with runner context fields declared, for Baton tests.',
+		'category'            => 'baton-test',
+		'input_schema'        => array(
+			'type'       => 'object',
+			'properties' => array(
+				'marker'      => array( 'type' => 'string' ),
+				'run_id'      => array( 'type' => 'string' ),
+				'workflow_id' => array( 'type' => 'integer' ),
+				'step_id'     => array( 'type' => 'string' ),
+			),
+		),
+		'output_schema'       => array(
+			'type'                 => 'object',
+			'additionalProperties' => true,
+		),
+		'execute_callback'    => static function ( $input = null ) {
+			return is_array( $input ) ? $input : array();
+		},
+		'permission_callback' => static function (): bool {
+			return true;
+		},
+		'meta'                => array(
+			'show_in_rest' => false,
+		),
+	);
+}
+
+/**
  * Register test ability category on the required hook.
  */
 
@@ -458,6 +495,7 @@ function baton_tests_register_abilities(): void {
 	wp_register_ability( 'baton-test/uppercase', baton_tests_get_uppercase_ability_args() );
 	wp_register_ability( 'baton-test/append-tag', baton_tests_get_append_tag_ability_args() );
 	wp_register_ability( 'baton-test/fail', baton_tests_get_fail_ability_args() );
+	wp_register_ability( 'baton-test/context-receiver', baton_tests_get_context_receiver_args() );
 	wp_register_ability( 'baton-test/order-producer', baton_tests_get_order_producer_args() );
 	wp_register_ability( 'baton-test/orders-producer', baton_tests_get_orders_producer_args() );
 	wp_register_ability( 'baton-test/order-consumer', baton_tests_get_order_consumer_args() );
@@ -505,6 +543,7 @@ function baton_tests_ensure_abilities_registered(): string {
 		'baton-test/uppercase'  => 'baton_tests_get_uppercase_ability_args',
 		'baton-test/append-tag' => 'baton_tests_get_append_tag_ability_args',
 		'baton-test/fail'      => 'baton_tests_get_fail_ability_args',
+		'baton-test/context-receiver' => 'baton_tests_get_context_receiver_args',
 		'baton-test/order-producer' => 'baton_tests_get_order_producer_args',
 		'baton-test/orders-producer' => 'baton_tests_get_orders_producer_args',
 		'baton-test/order-consumer' => 'baton_tests_get_order_consumer_args',

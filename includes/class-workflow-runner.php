@@ -27,11 +27,14 @@ final class Baton_Workflow_Runner {
 	public static function run( array $definition, int $workflow_id = 0, array $workflow_stack = array() ): array {
 		$definition = wp_parse_args( $definition, Baton_Workflow_CPT::default_definition() );
 
+		$run_id = wp_generate_uuid4();
+
 		if ( $workflow_id > 0 && in_array( $workflow_id, $workflow_stack, true ) ) {
 			return array(
 				'success' => false,
 				'error'   => __( 'Workflow cycle detected: a workflow cannot call itself directly or indirectly.', 'baton' ),
 				'steps'   => array(),
+				'run_id'  => $run_id,
 			);
 		}
 
@@ -45,6 +48,7 @@ final class Baton_Workflow_Runner {
 		$report = array(
 			'success' => true,
 			'steps'   => array(),
+			'run_id'  => $run_id,
 		);
 
 		if ( empty( $steps ) ) {
@@ -102,6 +106,11 @@ final class Baton_Workflow_Runner {
 				$mappings,
 				$input_schema
 			);
+
+			// Runner-filled execution context (run_id, workflow_id, step_id)
+			// for abilities whose input schema declares the fields.
+			$step_id           = self::resolve_step_id( $step, (int) $index );
+			$resolved['input'] = self::inject_step_context( $ability, $resolved['input'], $run_id, $workflow_id, $step_id );
 
 			$step_report['input']    = $resolved['input'];
 			$step_report['warnings'] = $resolved['warnings'];
@@ -226,6 +235,59 @@ final class Baton_Workflow_Runner {
 		}
 
 		return $report;
+	}
+
+	/**
+	 * Editor node id for a step: the stable definition id when present,
+	 * otherwise the step-N index fallback (mirrors layout persistence).
+	 *
+	 * @param array<string, mixed> $step  Step definition.
+	 * @param int                  $index Step index.
+	 * @return string
+	 */
+	private static function resolve_step_id( array $step, int $index ): string {
+		$id = isset( $step['id'] ) && is_string( $step['id'] ) && '' !== $step['id'] ? $step['id'] : '';
+
+		return '' !== $id ? $id : 'step-' . $index;
+	}
+
+	/**
+	 * Fill runner-known execution context into a step's input when the
+	 * ability's input schema declares the field (never overwriting values
+	 * resolved from mappings or static input).
+	 *
+	 * @param WP_Ability|null $ability     Ability for the step.
+	 * @param mixed           $input       Resolved step input.
+	 * @param string          $run_id      Execution run ID.
+	 * @param int             $workflow_id Workflow post ID.
+	 * @param string          $step_id     Editor node id.
+	 * @return mixed
+	 */
+	private static function inject_step_context( ?WP_Ability $ability, $input, string $run_id, int $workflow_id, string $step_id ) {
+		if ( ! $ability instanceof WP_Ability || ! is_array( $input ) ) {
+			return $input;
+		}
+
+		$schema = $ability->get_input_schema();
+		$props  = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : array();
+
+		if ( empty( $props ) ) {
+			return $input;
+		}
+
+		$context = array(
+			'run_id'      => $run_id,
+			'workflow_id' => $workflow_id,
+			'step_id'     => $step_id,
+		);
+
+		foreach ( $context as $key => $value ) {
+			if ( isset( $props[ $key ] ) && ! array_key_exists( $key, $input ) ) {
+				$input[ $key ] = $value;
+			}
+		}
+
+		return $input;
 	}
 
 	/**
