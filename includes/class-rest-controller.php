@@ -75,6 +75,24 @@ final class Baton_Rest_Controller {
 				),
 			)
 		);
+
+		register_rest_route(
+			self::ROUTE_NAMESPACE,
+			'/' . self::ROUTE_BASE . '/(?P<id>\d+)/viewer',
+			array(
+				'args' => array(
+					'id' => array(
+						'description' => __( 'Unique identifier for the workflow.', 'baton' ),
+						'type'        => 'integer',
+					),
+				),
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'handle_viewer' ),
+					'permission_callback' => array( self::class, 'check_permissions' ),
+				),
+			)
+		);
 	}
 
 	/**
@@ -94,6 +112,16 @@ final class Baton_Rest_Controller {
 	 */
 	public static function run_url( int $post_id ): string {
 		return rest_url( self::ROUTE_NAMESPACE . '/' . self::ROUTE_BASE . '/' . absint( $post_id ) . '/run' );
+	}
+
+	/**
+	 * URL of the saved-values viewer endpoint for one workflow.
+	 *
+	 * @param int $post_id Workflow post ID.
+	 * @return string
+	 */
+	public static function viewer_url( int $post_id ): string {
+		return rest_url( self::ROUTE_NAMESPACE . '/' . self::ROUTE_BASE . '/' . absint( $post_id ) . '/viewer' );
 	}
 
 	/**
@@ -253,6 +281,36 @@ final class Baton_Rest_Controller {
 		$report = Baton_Workflow_Runner::run( $definition, $workflow_id );
 
 		return rest_ensure_response( $report );
+	}
+
+	/**
+	 * Return the server-rendered saved-values panel for one workflow.
+	 *
+	 * Powers the run panel's live refresh: after any completed run the
+	 * client swaps this partial into the viewer without a page reload.
+	 * Rendering and escaping are Baton_Run_Viewer's own (no markup
+	 * divergence); permission rides the shared check_permissions().
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public static function handle_viewer( WP_REST_Request $request ) {
+		$workflow_id = absint( $request['id'] );
+
+		$post = get_post( $workflow_id );
+		if ( ! $post || Baton_Workflow_CPT::POST_TYPE !== $post->post_type ) {
+			return new WP_Error(
+				'baton_rest_workflow_not_found',
+				__( 'Workflow not found.', 'baton' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'html' => Baton_Run_Viewer::viewer_markup( $workflow_id ),
+			)
+		);
 	}
 
 	/**

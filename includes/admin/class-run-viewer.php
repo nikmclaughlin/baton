@@ -234,7 +234,25 @@ final class Baton_Run_Viewer {
 			return;
 		}
 
+		// viewer_markup() escapes at every output site — this is the same
+		// internal partial the REST viewer endpoint serves.
+		echo self::viewer_markup( $workflow_id ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Internal, self-escaped markup.
+	}
+
+	/**
+	 * Markup for the saved-values panel (callers must cap-check).
+	 *
+	 * Identical output to render(), captured instead of echoed so the REST
+	 * viewer endpoint can serve the same partial verbatim for the run
+	 * panel's live refresh — one rendering, one escaping, one markup.
+	 *
+	 * @param int $workflow_id Workflow post ID.
+	 * @return string
+	 */
+	public static function viewer_markup( int $workflow_id ): string {
 		$runs = self::get_runs( $workflow_id );
+
+		ob_start();
 
 		echo '<div id="baton-saved-values" class="baton-runs-panel">';
 		echo '<h2>' . esc_html__( 'Saved values & logs', 'baton' ) . '</h2>';
@@ -245,7 +263,7 @@ final class Baton_Run_Viewer {
 		if ( empty( $runs ) ) {
 			echo '<p class="description baton-runs-panel__empty">' . esc_html__( 'No saved values or logs yet. Run a workflow that includes save-output, save-state, or log steps and its output will appear here.', 'baton' ) . '</p>';
 			echo '</div>';
-			return;
+			return (string) ob_get_clean();
 		}
 
 		foreach ( $runs as $run ) {
@@ -255,6 +273,7 @@ final class Baton_Run_Viewer {
 		}
 
 		echo '</div>';
+		return (string) ob_get_clean();
 	}
 
 	/**
