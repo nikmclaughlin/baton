@@ -181,7 +181,7 @@ class Test_CLI_Execution extends WP_UnitTestCase {
 	}
 
 	// ──────────────────────────────────────────────────────────────
-	// `wp baton info`
+	// `wp baton info`: strict gating (same gate as run) + inspection
 	// ──────────────────────────────────────────────────────────────
 
 	public function test_info_prints_title_status_steps_surfaces_and_newest_run(): void {
@@ -225,25 +225,70 @@ class Test_CLI_Execution extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'success', $joined );
 	}
 
-	public function test_info_errors_for_non_workflow_ids_and_prints_absent_run(): void {
+	public function test_info_gates_like_run_with_generic_error(): void {
 		$this->expect_save_time_ability_notices();
 
-		$post_id = $this->create_published_workflow( 'Quiet', array() );
+		$id_rest  = $this->create_published_workflow( 'Rest only', array( 'rest' ) );
+		$id_draft = $this->create_workflow( 'Draft cli', array( 'cli' ), 'draft' );
+
+		$missing_id = max( $id_rest, $id_draft ) + 424242;
+
+		$targets = array( (string) $id_rest, (string) $id_draft, (string) $missing_id );
 
 		$cli = new Baton_CLI();
 
-		// Missing (or non-workflow) IDs error with the requested ID.
+		// Missing, unpublished, and rest-only workflows all reject with the
+		// same generic error — the surface map decides whether a workflow
+		// exists in the CLI channel at all, not just whether it runs.
+		foreach ( $targets as $target ) {
+			$this->catch_cli_exit(
+				static function () use ( $cli, $target ) {
+					$cli->info( array( $target ), array() );
+				}
+			);
+		}
+
+		// No information leak: every rejection is the generic not-exposed
+		// error, byte-identical for all three targets, and the requested
+		// ID never appears.
+		$errors = WP_CLI::messages( 'error' );
+		$this->assertCount( 3, $errors );
+
+		$previous_error = null;
+		foreach ( $targets as $index => $target ) {
+			$error = (string) $errors[ $index ];
+			$this->assertStringContainsString(
+				'Workflow not found or not exposed for CLI execution',
+				$error
+			);
+			$this->assertStringContainsString( 'wp baton list', $error );
+			$this->assertStringNotContainsString( 'No workflow found with ID', $error );
+			$this->assertStringNotContainsString( $target, $error );
+
+			if ( null !== $previous_error ) {
+				$this->assertSame( $previous_error, $error );
+			}
+			$previous_error = $error;
+		}
+
+		// Byte-identical to `wp baton run`'s rejection — one shared gate.
 		$this->catch_cli_exit(
-			static function () use ( $cli ) {
-				$cli->info( array( '999999' ), array() );
+			static function () use ( $cli, $id_rest ) {
+				$cli->run( array( (string) $id_rest ), array() );
 			}
 		);
 
-		$messages = WP_CLI::messages( 'error' );
-		$this->assertCount( 1, $messages );
-		$this->assertSame( 'No workflow found with ID 999999.', $messages[0] );
+		$errors = WP_CLI::messages( 'error' );
+		$this->assertCount( 4, $errors );
+		$this->assertSame( $errors[0], $errors[3] );
+	}
 
-		// A workflow without saved runs says so.
+	public function test_info_prints_absent_run_note_for_exposed_workflow(): void {
+		$this->expect_save_time_ability_notices();
+
+		$post_id = $this->create_published_workflow( 'Quiet', array( 'cli' ) );
+
+		$cli = new Baton_CLI();
 		$cli->info( array( (string) $post_id ), array() );
 		$this->assertStringContainsString(
 			'Newest run: (none saved)',

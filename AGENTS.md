@@ -58,7 +58,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 `includes/class-cli.php` (`Baton_CLI`) registers at `cli_init` from `Baton_Plugin::init()` (and is gated to no-op without `defined( 'WP_CLI' ) && WP_CLI`). Three subcommands:
 
 - `wp baton list [--format=table|json|csv]` — published workflows whose surface map contains `cli` (ID, title, surfaces, step count).
-- `wp baton info <id>` — title/status/surfaces/steps with ability names/newest saved run summary (read-only; any Baton workflow, exposure gates RUNS not inspection).
+- `wp baton info <id>` — title/status/surfaces/steps with ability names/newest saved run summary. Strictly gated exactly like `run`: missing / unpublished / non-`cli`-surface IDs all get the same one generic "not exposed" error (exit 1; the surface map decides whether a workflow exists in the CLI channel at all, not just whether it runs).
 - `wp baton run <id> [--input=<json>] [--input-file=<path>] [--format=table|json]` — strict gating (`Baton_CLI::is_cli_runnable()`: exists + published + `cli` surface; anything else gets one generic "not exposed" error that never reveals which check failed — mirrors REST's 404 invisibility). Runs `Baton_Workflow_Runner::run()` directly, prints the FULL runner report; a present `--input`/`--input-file` (JSON object; `{}` clears) replaces the saved `initial_input` like the admin run endpoint; `--format=json` prints the raw report (BEFORE the exit decision) so scripts can capture it; failed run ⇒ `WP_CLI::error` (exit 1). Every CLI run logs an "External run" row (value `{trigger:'cli', …}`) through `Baton_External_Execution::log_cli_run()`.
 
 WP-CLI is absent from the PHPUnit harness, so tests drive the command methods directly against a shim: `tests/php/wp-cli-stub.php` (constant-checked guard — NOT `class_exists`, which self-triggers because PHP pre-binds the shim's own top-level class before its statements run; captured I/O; `WP_CLI\ExitException` on error; simplified `WP_CLI\Utils\format_items`). See `tests/php/Test_CLI_Execution.php`. For static analysis, `phpstan-stubs/wp-cli-stubs.php` is added to phpstan's `bootstrapFiles` (WP-CLI's class/functions; `stubFiles` alone does not register symbols).
@@ -178,7 +178,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (277 tests)
+npm run test:php               # wp-env phpunit
 ```
 
 ### Node/npm environment (local/CI parity)

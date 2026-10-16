@@ -18,6 +18,8 @@ Baton is a WordPress plugin that adds a thin, lightweight layer used by admins t
 
 It provides field-level input mapping to control data passing between registered Abilities, and each workflow is also registered as it's own Ability (`baton/workflow-{id}`) for nesting or use in external tooling.
 
+External execution is per-workflow and strictly opt-in: the editor's **Expose externally** checkboxes publish a workflow to the channels you choose — REST (the core Abilities REST API) and/or WP-CLI. Exposed workflows are listed and runnable with `wp baton list`, `wp baton info`, and `wp baton run`, and every externally triggered run is logged in the workflow's saved values & logs viewer.
+
 **Features:**
 
 * Visual workflow editor with ability steps and data filters between steps
@@ -46,7 +48,7 @@ Baton depends on the Abilities API (`wp_register_ability`, `wp_get_abilities`, a
 
 = Can I run workflows from the REST API or WP-CLI? =
 
-Each saved workflow is registered as an ability (`baton/workflow-{post_id}`), but workflows are not exposed via `show_in_rest` at this point.
+Yes, strictly opt-in per workflow. With **Expose externally (REST)** ticked, a workflow is served and executable through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{id}/run`); execution still requires admin authentication, and application passwords are supported for machine callers. With **Expose externally (WP-CLI)** ticked, the workflow shows up in `wp baton list` and `wp baton info` and is runnable with `wp baton run`. Unexposed workflows are not listed and not runnable on external channels — REST requests 404 and `wp baton` commands stop with a generic "not exposed" error. Every externally triggered run is recorded as an "External run" row in the workflow's saved values & logs viewer.
 
 = How do workflows accumulate state between runs? =
 

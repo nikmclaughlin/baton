@@ -46,7 +46,7 @@ The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/work
 	wp baton run <id> --input-file=/tmp/input.json
 	```
 
-	`wp baton run` gates strictly: a workflow without the CLI surface is not listed and not runnable — the command stops with a generic not-found error before executing (mirroring REST's 404 invisibility). The default format prints a human-readable step-by-step report (inputs, warnings, outputs, errors, run ID); `--format=json` emits the raw runner report for scripting. A failed run still prints its full report but exits non-zero (`WP_CLI::error`). Like the REST channel, every CLI run is logged in the saved-values viewer.
+	`wp baton info` and `wp baton run` gate strictly: a workflow without the CLI surface is not listed and not runnable — the commands stop with a generic not-found error before touching it (mirroring REST's 404 invisibility). The default format prints a human-readable step-by-step report (inputs, warnings, outputs, errors, run ID); `--format=json` emits the raw runner report for scripting. A failed run still prints its full report but exits non-zero (`WP_CLI::error`). Like the REST channel, every CLI run is logged in the saved-values viewer.
 
 ### Baton's memory: save output, keep state, load, log
 

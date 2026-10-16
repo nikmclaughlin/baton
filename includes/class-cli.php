@@ -87,7 +87,11 @@ class Baton_CLI {
 	}
 
 	/**
-	 * Show details for one workflow (any Baton workflow; read-only).
+	 * Show details for one workflow exposed for CLI execution.
+	 *
+	 * Gating matches `wp baton run`: missing, unpublished, or unexposed
+	 * workflows all get the same generic error (mirrors the REST channel's
+	 * 404 invisibility).
 	 *
 	 * ## OPTIONS
 	 *
@@ -103,10 +107,19 @@ class Baton_CLI {
 	 * @return void
 	 */
 	public function info( array $args, array $assoc_args ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- WP-CLI dispatch always passes both arrays.
-		$data = $this->info_data( $this->positional_id( $args ) );
+		$post_id = $this->positional_id( $args );
+
+		if ( ! $this->is_cli_runnable( $post_id ) ) {
+			WP_CLI::error( $this->not_runnable_error() );
+			return;
+		}
+
+		$data = $this->info_data( $post_id );
 
 		if ( null === $data ) {
-			WP_CLI::error( $this->not_found_error( $this->positional_id( $args ) ) );
+			// Unreachable after the gate above; defensive fallback keeps
+			// the same generic error so nothing can leak eligibility.
+			WP_CLI::error( $this->not_runnable_error() );
 			return;
 		}
 
@@ -304,8 +317,9 @@ class Baton_CLI {
 	/**
 	 * Inspection data for `wp baton info`.
 	 *
-	 * Any Baton workflow (read-only; exposure applies to runs, not to admin
-	 * inspection) — null when the post is not a workflow.
+	 * Callers gate eligibility with is_cli_runnable() first (same gate as
+	 * `wp baton run`); this returns null only when the post is not a Baton
+	 * workflow.
 	 *
 	 * @param int $post_id Workflow post ID.
 	 * @return array{title: string, status: string, surfaces: string, steps: array<int, array{index: int, ability: string}>, newest_run: array<string, mixed>|null}|null
@@ -596,7 +610,7 @@ class Baton_CLI {
 
 	/**
 	 * Generic not-found/not-exposed error (mirrors the REST channel's 404
-	 * invisibility for `wp baton run`).
+	 * invisibility; shared by `wp baton run` and `wp baton info`).
 	 *
 	 * @return string
 	 */
@@ -604,21 +618,6 @@ class Baton_CLI {
 		return __(
 			'Workflow not found or not exposed for CLI execution. Run "wp baton list" to see exposed workflows.',
 			'baton'
-		);
-	}
-
-	/**
-	 * Not-found error for `wp baton info` (admin inspection; includes the
-	 * requested ID).
-	 *
-	 * @param int $post_id Requested post ID.
-	 * @return string
-	 */
-	private function not_found_error( int $post_id ): string {
-		return sprintf(
-			/* translators: %d: workflow post ID */
-			__( 'No workflow found with ID %d.', 'baton' ),
-			$post_id
 		);
 	}
 }
