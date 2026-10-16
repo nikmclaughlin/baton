@@ -49,6 +49,8 @@ Chain them with the usual data filters: map a previous step's output into `value
 
 **Saved values & logs viewer** — each workflow's edit screen lists its stored rows grouped by run (newest first): kind chip (save / state / log), label, click-to-expand value, time, and nonced delete controls for a single row or an entire run (`manage_options`). Nothing saved is ever pruned automatically — deletes here are explicit user actions. The saves+logs timeline is one unified view by design (decision-with-revisit: kind filters or tabs are trivial to add later if real usage wants separation).
 
+**Missing-table self-healing** — dbDelta runs on activation, so a replaced or restored database can leave Baton without its storage table. Admins see a dismissible warning across the admin with a one-click **Run database migration** button (nonce-gated, `manage_options`), and a run that happens before migrating doesn't fail opaquely: ability failure messages gain the underlying `Storage error:` context (e.g. "Table … doesn't exist").
+
 
 ## Roadmap / Known Gaps 
 

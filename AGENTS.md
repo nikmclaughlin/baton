@@ -20,7 +20,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` at `wp_abilities_api_init` only (see WP 6.9 note below) |
 | Nested workflows | Runner passes a `workflow_stack` and rejects cycles |
 | Admin catalog | `Baton_Ability_Catalog` + `Baton_Schema_Paths` expose schemas, I/O summaries, and mappable paths to JS |
-| Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
+| Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall; static-cached `table_exists()`); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
 | Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
@@ -81,6 +81,7 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 - **REST endpoints** (`includes/class-rest-controller.php`, namespace `baton/v1`): `POST /baton/v1/workflows` (save; JSON body, same fields as the form POST, returns `{post_id, edit_url, message}`) and `POST /baton/v1/workflows/{id}/run` (JSON body `{initial_input}`; returns the full runner report `{success, steps, error}` — step failures stay HTTP 200 in-band, request-level failures use 400/403/404). `check_permissions()` requires `manage_options`, plus a valid `X-WP-Nonce` (`wp_rest`) for cookie-authenticated requests, matching core's `rest_cookie_check_errors()` semantics.
 - **REST save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `POST /baton/v1/workflows` (JSON body + `X-WP-Nonce`, no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
 - **Saved-values viewer** (`includes/admin/class-run-viewer.php`): server-rendered below the run panel on the edit screen; `Baton_Run_Viewer::maybe_handle_action()` handles `baton_delete_value` / `baton_delete_run` GET row actions (core list-table convention) with per-target nonces and `manage_options` on `admin_init`; deletes are workflow-scoped (`delete_run_for_workflow`). Values are JSON-decoded by storage and escaped/truncated at render.
+- **Migration notice** (`includes/admin/class-migration-notice.php`): `Baton_Migration_Notice` — when `Baton_Saved_Values::table_exists()` is false (e.g. after a database restore), admins get a dismissible `admin_notices` warning on every admin page with a one-click "Run database migration" button; it rides the `baton_run_migration` GET row action (wp_verify_nonce + `manage_options` on `admin_init`) that runs `Baton_Saved_Values::install()` (dbDelta) and redirects back with a success notice. Separately, the four utility abilities append `$wpdb->last_error` as `Storage error: …` context (`Baton_Utility_Abilities::storage_error_suffix()`) on write/read failures so pre-migration runs stay diagnosable; error codes, report keys, and schemas are unchanged.
 - **Context-field hiding**: runner-filled `run_id`/`workflow_id`/`step_id` properties stay in the registered schemas (runner injection depends on them) but `Baton_Schema_Paths::is_context_property()` strips them from mappable paths, and `Baton_Ability_Catalog::format_ability()` hides them from `input_fields`, `input_targets`, `example_input`, and input summaries — so all step input UIs stay user-only.
 
 ### Editor views (Phase 0–3)
@@ -114,6 +115,7 @@ includes/
   admin/
     class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
     class-run-viewer.php  # Saved values & logs viewer + delete actions
+    class-migration-notice.php  # Missing-table notice + one-click dbDelta migration
     class-workflow-list-table.php
 src/
   index.js
@@ -146,7 +148,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (258 tests)
+npm run test:php               # wp-env phpunit (269 tests)
 ```
 
 ### Node/npm environment (local/CI parity)

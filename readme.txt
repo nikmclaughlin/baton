@@ -72,6 +72,7 @@ Reads are deliberately scoped to Baton's own memory (values written by `baton/sa
 * Thread a per-execution `run_id` through every step and store it on saved rows; the run report gains `run_id` additively.
 * Runner injects `run_id`/`workflow_id`/`step_id` into step inputs when an ability's input schema declares them; the editor hides those runner-filled fields from input UIs and mappable paths.
 * Add a per-workflow saved values & logs viewer on the edit screen: newest-first runs, unified save/state/log timeline, click-to-expand values, and nonced delete row / delete run controls.
+* Detect a missing `baton_saved_values` table (e.g. after a database restore) and offer admins a one-click "Run database migration" repair; utility storage failures now include the underlying MySQL error.
 
 = 0.5.1-alpha =
 * Add subproperty selection in data filter UI (nested dot-path mapping for source and target).
