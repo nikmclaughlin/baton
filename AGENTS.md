@@ -14,7 +14,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 
 | Concept | Implementation |
 |--------|----------------|
-| Workflow storage | CPT `baton_workflow` (no public UI); definition in meta `_baton_workflow_definition`, editor layout in `_baton_editor_layout` |
+| Workflow storage | CPT `baton_workflow` (no public UI); definition in meta `_baton_workflow_definition`, editor layout in `_baton_editor_layout`, external-surface map in `_baton_external_surfaces` |
 | Step execution | `Baton_Workflow_Runner` — sequential steps via `WP_Ability::execute()` |
 | Data between steps | **Data filters** (`input_mappings`) on edges between nodes; dot-path extraction via `Baton_Input_Mapper` |
 | Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` at `wp_abilities_api_init` only (see WP 6.9 note below) |
@@ -23,6 +23,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall; static-cached `table_exists()`); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
 | Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
+| External execution (B2) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']` today; room for `cli`/`mcp` later), toggled by the editor's "Expose externally (REST)" checkbox; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`, and `Baton_External_Execution` appends a `log` row ("External run") for every run dispatched through core's `wp-abilities/v1/abilities/{name}/run` route |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
 
 ### Workflow definition (meta JSON)
@@ -47,6 +48,21 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 - **`use_previous_output`**: legacy flag; runner still honors it when no mappings exist.
 - **`input_mappings`**: maps from `initial` (step 1 only) or `previous` step output via dot paths into ability input fields. Scalar abilities use an empty `target` and path-only rows.
 - Sanitization: `Baton_Workflow_CPT::sanitize_definition()` + `Baton_Input_Mapper::sanitize_mappings()`.
+
+### External REST execution (B2)
+
+`Baton_Workflow_Abilities::register_workflow_ability()` sets the ability's `show_in_rest` meta true only when the workflow's surface map (`_baton_external_surfaces`) contains `rest` — i.e. the editor's "Expose externally (REST)" checkbox. Exposed abilities are served and executable through core's `wp-abilities/v1` REST routes (visible in the abilities list to users who can `read`; execution still requires the ability permission callback → `manage_options`, e.g. application-password machine callers). External callers POST `{ "input": {…} }` to `/wp-json/wp-abilities/v1/abilities/baton/workflow-{id}/run`; the success body is the raw last-step output. Baton never touches the core controller: `Baton_External_Execution` watches the before/after-callbacks dispatch filters (per-request keyed) to (a) distinguish external runs from the `baton/v1` admin-run endpoint and nested execution and (b) append a `kind = log` row (label "External run", value: trigger/input/success/error) via `Baton_Saved_Values`.
+
+### WP 7.1 delta check on the abilities REST surface (no Baton change needed)
+
+Re-verified the B2 core-REST contract against WP 7.1 (WordPress/WordPress ref `7.1`) by diffing the abilities REST surface against the 6.9 baseline, per element:
+
+- **Route registration — no delta.** `register_routes()` is byte-identical (same namespace, `(?P<name>[a-zA-Z0-9\-\/]+?)/run` pattern, `ALLMETHODS`, callback/permission wiring). `rest_api_init` in 7.1 only adds unrelated controllers (Icons / Icon Collections / View Config) beside the same abilities controllers.
+- **Permission enforcement — no functional delta.** Same order and codes: 404 `rest_ability_not_found` (missing ability or falsy `show_in_rest`), 405 method mismatch, 400 `ability_invalid_input`, then the ability permission callback → `rest_ability_cannot_execute` at `rest_authorization_required_code()` (401 anonymous / 403 logged in). 7.1 routes normalize/validate errors through a new `ensure_error_status()` (identical 400s for Baton: our errors carry no status data, and execution errors still map missing status data → 500 via `rest_convert_error_to_response`). Its `wp_has_ability()` pre-check is not 7.x-only — the function exists in 6.9 too.
+- **Input validation — one additive delta, a verified no-op for Baton.** 7.1 registers a `sanitize_callback` on the `input` arg (`sanitize_input_for_ability()` → `coerce_input_to_schema()`) which runs during the dispatch sanitize phase, before the permission callback, and coerces already-validating input to the ability input schema via `rest_sanitize_value_from_schema()`. With Baton's `baton/workflow-{id}` input schema (`{type: 'object', additionalProperties: true}`, no declared properties) the sanitizer returns the input unchanged; invalid input skips coercion and is rejected 400 exactly as in 6.9. New `WP_Ability` layers (`wp_ability_invoked` action, `wp_pre_execute_ability` short-circuit, `wp_ability_normalize_input` / `wp_ability_validate_input` / `wp_ability_permission_result` / `wp_ability_execute_result` filters) and the 7.1 `Throwable`→`ability_callback_exception` wrapper in `invoke_callback()` are pass-through/defensive and a no-op unless a plugin registers them (Baton doesn't).
+- **Response shape — no delta.** `execute_ability()` still returns `rest_ensure_response()` of the raw execute value (Baton: last-step output). The abilities list still filters `show_in_rest` under `read` permission and 404s unexposed single items; 7.1 adds `namespace`/`meta` collection params, the `rest_abilities_collection_params` filter, `wp_prepare_json_schema_for_client()`, and a `public` key in listed meta — all additive.
+
+7.1 also adds ability meta `public` (default false) as a seed for per-channel flags like `show_in_rest`. Baton deliberately doesn't use it: workflow abilities always pass an explicit `show_in_rest` bool (explicit value wins in both versions), and `public = true` would seed defaults for future channel flags (MCP/CLI), contradicting per-surface opt-in. Nothing Baton ships calls a 7.x-only API; the 6.9 floor stands and all tests still pass against 6.9.
 
 ### Execution flow
 
@@ -102,6 +118,7 @@ includes/
   class-workflow-cpt.php  # CPT + meta get/save/sanitize (definition + layout)
   class-workflow-runner.php
   class-workflow-abilities.php
+  class-external-execution.php  # external (REST) run context + run logging
   class-saved-values.php  # Custom-table storage for save/state/log rows
   class-utility-abilities.php  # baton-utility category + shared schema helpers
   class-save-output-ability.php  # baton/save-output "Save output"
@@ -180,7 +197,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 ## Known gaps / roadmap
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
+- **CLI & MCP external surfaces** — B2 added per-workflow opt-in REST exposure (`_baton_external_surfaces` = `['rest']`); CLI and MCP surface slugs (and their triggers/permission surfaces) remain future decisions.
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).

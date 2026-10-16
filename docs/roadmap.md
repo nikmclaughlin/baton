@@ -16,8 +16,8 @@ The editor is a fiddly time-sink; do it once there are functional backend pieces
    - **Constraint: additive only** — do not reshape the run report that `admin-run.js` / editor badges consume.
    - Results keyed by step ID.
 
-3. **B2 — external execution** (needs B1)
-   - Flip `show_in_rest` on workflow abilities → core `/abilities/v1/{name}/run`; auth hardening.
+3. **B2 — external execution** (needs B1) — spec: `docs/b2-external-execution.md`
+   - Per-workflow opt-in toggle stored as a surface map (`_baton_external_surfaces`; `rest` now, `cli`/`mcp` later); `show_in_rest` flips only on opt-in; `manage_options` permission unchanged; external runs write a log row. JS test infra spun off to issue #7.
 
 4. **B3 — CLI + Command Palette** — thin wrappers over B2.
 

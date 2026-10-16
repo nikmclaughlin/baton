@@ -418,11 +418,16 @@
 .baton-editor__toolbar--view {
 	display: flex;
 	justify-content: flex-end;
+	align-items: flex-start;
 	margin-bottom: 12px;
 }
 
 .baton-editor__view-toggle {
 	max-width: 260px;
+}
+
+.baton-editor__expose-rest {
+	margin-right: 24px;
 }
 
 .baton-editor__node-canvas {

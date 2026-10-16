@@ -178,7 +178,14 @@ final class Baton_Workflow_Abilities {
 						'destructive' => false,
 						'idempotent'  => false,
 					),
-					'show_in_rest' => false,
+					// Per-workflow opt-in (B2): core's abilities REST routes
+					// 404 anything without show_in_rest, so unexposed
+					// workflows are invisible and unrunnable externally.
+					'show_in_rest' => in_array(
+						Baton_Workflow_CPT::SURFACE_REST,
+						Baton_Workflow_CPT::get_surfaces( $post_id ),
+						true
+					),
 				),
 			)
 		);
@@ -256,6 +263,10 @@ final class Baton_Workflow_Abilities {
 	/**
 	 * Execute callback for a registered workflow ability.
 	 *
+	 * When the execution arrived through core's Abilities REST run route
+	 * (the per-workflow "rest" exposure surface), a saved-values log row is
+	 * appended for the run — additive only, the report/result is unchanged.
+	 *
 	 * @param int   $post_id Workflow post ID.
 	 * @param mixed $input   Optional workflow input.
 	 * @return mixed|WP_Error
@@ -268,6 +279,10 @@ final class Baton_Workflow_Abilities {
 		}
 
 		$report = Baton_Workflow_Runner::run( $definition, $post_id );
+
+		if ( Baton_External_Execution::is_rest_triggered( self::get_ability_name( $post_id ) ) ) {
+			Baton_External_Execution::log_rest_run( $post_id, $input, $report );
+		}
 
 		if ( ! $report['success'] ) {
 			return new WP_Error(

@@ -25,6 +25,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		steps: [],
 	} );
 	const layout = readJsonElement( 'baton-layout-data', {} );
+	const surfaces = readJsonElement( 'baton-surfaces-data', [] );
 	const mode = window.BatonEditor?.editorMode === 'stack' ? 'stack' : 'node';
 
 	const root = createRoot( rootEl );
@@ -33,6 +34,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 			abilities={ abilities }
 			initialDefinition={ definition }
 			initialLayout={ layout }
+			initialSurfaces={ Array.isArray( surfaces ) ? surfaces : [] }
 			initialMode={ mode }
 		/>
 	);

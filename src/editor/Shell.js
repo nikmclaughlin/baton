@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from '@wordpress/element';
 import {
 	__experimentalToggleGroupControl as ToggleGroupControl,
 	__experimentalToggleGroupControlOption as ToggleGroupControlOption,
+	CheckboxControl,
 	Snackbar,
 } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
@@ -50,6 +51,7 @@ export default function EditorShell( {
 	abilities,
 	initialDefinition,
 	initialLayout,
+	initialSurfaces,
 	initialMode = 'node',
 } ) {
 	const editorConfig = window.BatonEditor || {};
@@ -71,6 +73,14 @@ export default function EditorShell( {
 			typeof initialDefinition.initial_input === 'object'
 			? initialDefinition.initial_input
 			: {}
+	);
+	// External-execution surface map (B2): slugs of the surfaces this
+	// workflow is opt-in exposed on. Today only 'rest' (core's abilities
+	// run route); CLI/MCP join the map later.
+	const [ surfaces, setSurfaces ] = useState( () =>
+		Array.isArray( initialSurfaces )
+			? initialSurfaces.filter( ( slug ) => typeof slug === 'string' )
+			: []
 	);
 	const [ saving, setSaving ] = useState( false );
 	const [ snackbar, setSnackbar ] = useState( null );
@@ -110,6 +120,16 @@ export default function EditorShell( {
 		);
 	}, [ steps, initialInput ] );
 
+	// B2: the surface map rides the save contract as its own hidden field,
+	// seeded server-side and kept in sync so both save paths see it.
+	const syncSurfacesField = useCallback( () => {
+		const hidden = document.getElementById( 'baton_external_surfaces' );
+		if ( ! hidden ) {
+			return;
+		}
+		hidden.value = JSON.stringify( surfaces );
+	}, [ surfaces ] );
+
 	useEffect( () => {
 		syncHiddenField();
 		window.BatonEditorSync = syncHiddenField;
@@ -117,6 +137,20 @@ export default function EditorShell( {
 			delete window.BatonEditorSync;
 		};
 	}, [ syncHiddenField ] );
+
+	useEffect( () => {
+		syncSurfacesField();
+	}, [ syncSurfacesField ] );
+
+	const toggleRestSurface = useCallback( ( checked ) => {
+		setSurfaces( ( prev ) => {
+			const base = Array.isArray( prev ) ? prev : [];
+			if ( checked && ! base.includes( 'rest' ) ) {
+				return [ ...base, 'rest' ];
+			}
+			return base.filter( ( slug ) => slug !== 'rest' );
+		} );
+	}, [] );
 
 	/**
 	 * Save the workflow via the REST endpoint. When a modal is committing
@@ -190,6 +224,9 @@ export default function EditorShell( {
 
 					const definition = readInputValue( 'workflow_definition' );
 					const layout = readInputValue( 'baton_editor_layout' );
+					const surfacesJson = readInputValue(
+						'baton_external_surfaces'
+					);
 					const excerpt = readInputValue( 'workflow_excerpt' );
 					const workflowIdInput =
 						document.getElementById( 'workflow_id' );
@@ -204,6 +241,9 @@ export default function EditorShell( {
 						// accepts both the string and a decoded object.
 						workflow_definition: definition,
 						baton_editor_layout: layout,
+						// B2: the (JSON) surface map; absence would keep the
+						// stored map, and the field is always synced here.
+						external_surfaces: surfacesJson,
 						workflow_id: workflowId,
 					};
 
@@ -313,6 +353,16 @@ export default function EditorShell( {
 	return (
 		<div className="baton-editor baton-editor--shell">
 			<div className="baton-editor__toolbar baton-editor__toolbar--view">
+				<CheckboxControl
+					className="baton-editor__expose-rest"
+					label={ __( 'Expose externally (REST)', 'baton' ) }
+					help={ __(
+						'Serve this workflow over the core Abilities REST API for external tooling (admins only; runs are logged below).',
+						'baton'
+					) }
+					checked={ surfaces.includes( 'rest' ) }
+					onChange={ toggleRestSurface }
+				/>
 				<ToggleGroupControl
 					label={ __( 'Editor view', 'baton' ) }
 					hideLabelFromVision

@@ -155,6 +155,9 @@ final class Baton_Admin {
 		echo '<script type="application/json" id="baton-layout-data">';
 		echo wp_json_encode( Baton_Workflow_CPT::get_layout( (int) $post_id ) );
 		echo '</script>';
+		echo '<script type="application/json" id="baton-surfaces-data">';
+		echo wp_json_encode( Baton_Workflow_CPT::get_surfaces( (int) $post_id ) );
+		echo '</script>';
 		$editor_config = array(
 			'editorMode' => 'stack' === apply_filters( 'baton_editor_mode', 'node' ) ? 'stack' : 'node',
 			'restRoot'   => Baton_Rest_Controller::save_url(),
@@ -195,6 +198,9 @@ final class Baton_Admin {
 		// Seed with the stored layout so a save from the stack view (where
 		// NodeView is unmounted) keeps existing node positions.
 		echo '<input type="hidden" name="baton_editor_layout" id="baton_editor_layout" value="' . esc_attr( (string) wp_json_encode( Baton_Workflow_CPT::get_layout( (int) $post_id ) ) ) . '" />';
+		// Seed the external-execution surface map (B2); the React shell keeps
+		// it in sync whenever the "Expose externally (REST)" toggle changes.
+		echo '<input type="hidden" name="baton_external_surfaces" id="baton_external_surfaces" value="' . esc_attr( (string) wp_json_encode( Baton_Workflow_CPT::get_surfaces( (int) $post_id ) ) ) . '" />';
 
 		echo '<p class="submit">';
 		submit_button( __( 'Save Workflow', 'baton' ), 'primary', 'submit', false );
@@ -296,15 +302,21 @@ final class Baton_Admin {
 
 		$layout_raw = isset( $_POST['baton_editor_layout'] ) ? wp_unslash( $_POST['baton_editor_layout'] ) : '{}'; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
-		$result = self::save_workflow_post(
-			array(
-				'title'       => $title,
-				'excerpt'     => $excerpt,
-				'definition'  => $decoded,
-				'layout_raw'  => (string) $layout_raw,
-				'workflow_id' => $post_id,
-			)
+		$save_args = array(
+			'title'       => $title,
+			'excerpt'     => $excerpt,
+			'definition'  => $decoded,
+			'layout_raw'  => (string) $layout_raw,
+			'workflow_id' => $post_id,
 		);
+
+		// B2: external-execution surface map (JSON array in a hidden field
+		// synced by the editor). Absent (pre-toggle editor builds) = keep.
+		if ( array_key_exists( 'baton_external_surfaces', $_POST ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified above.
+			$save_args['external_surfaces'] = wp_unslash( $_POST['baton_external_surfaces'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized in save_workflow_post().
+		}
+
+		$result = self::save_workflow_post( $save_args );
 
 		if ( is_wp_error( $result ) ) {
 			self::redirect_save_error( $is_new ? 'new' : 'edit', $post_id, $result->get_error_message() );
@@ -492,21 +504,29 @@ final class Baton_Admin {
 	}
 
 	/**
-	 * Persist definition and layout for a workflow, then re-register its ability.
+	 * Persist definition, layout and external-execution surfaces for a
+	 * workflow, then re-register its ability.
 	 *
 	 * Shared by the classic form POST and the REST save endpoint.
 	 *
-	 * @param int                  $post_id    Workflow post ID.
-	 * @param array<string, mixed> $definition Sanitized workflow definition.
-	 * @param string               $layout_raw Raw layout JSON from the editor.
+	 * @param int                     $post_id    Workflow post ID.
+	 * @param array<string, mixed>    $definition Sanitized workflow definition.
+	 * @param string                  $layout_raw Raw layout JSON from the editor.
+	 * @param array<int, string>|null $external_surfaces Sanitized surface slugs; null leaves
+	 *                                                    the stored map untouched (the
+	 *                                                    caller did not send one).
 	 */
-	public static function persist_workflow( int $post_id, array $definition, string $layout_raw ): void {
+	public static function persist_workflow( int $post_id, array $definition, string $layout_raw, ?array $external_surfaces = null ): void {
 		Baton_Workflow_CPT::save_definition( $post_id, $definition );
 
 		// Persist node-canvas layout, pruned to definition ids.
 		$layout = Baton_Workflow_CPT::sanitize_layout( json_decode( $layout_raw, true ) );
 		$layout = Baton_Workflow_CPT::prune_layout( $layout, $definition );
 		Baton_Workflow_CPT::save_layout( $post_id, $layout );
+
+		if ( is_array( $external_surfaces ) ) {
+			Baton_Workflow_CPT::save_surfaces( $post_id, $external_surfaces );
+		}
 
 		if ( 'publish' === get_post_status( $post_id ) ) {
 			Baton_Workflow_Abilities::register_workflow_ability( $post_id );
@@ -522,7 +542,10 @@ final class Baton_Admin {
 	 *
 	 * @param array<string, mixed> $args Normalized editor payload:
 	 *                                   title, excerpt, definition (already
-	 *                                   decoded), layout_raw, workflow_id.
+	 *                                   decoded), layout_raw, workflow_id,
+	 *                                   and optionally external_surfaces
+	 *                                   (raw slugs/JSON string; absent = keep
+	 *                                   the stored surface map).
 	 * @return array{post_id: int, edit_url: string, message: string}|WP_Error Payload on success.
 	 */
 	public static function save_workflow_post( array $args ) {
@@ -536,6 +559,10 @@ final class Baton_Admin {
 				__( 'Title is required.', 'baton' )
 			);
 		}
+
+		$external_surfaces = array_key_exists( 'external_surfaces', $args )
+			? Baton_Workflow_CPT::decode_surfaces_param( $args['external_surfaces'] )
+			: null;
 
 		$definition  = Baton_Workflow_CPT::sanitize_definition(
 			$args['definition']
@@ -594,7 +621,7 @@ final class Baton_Admin {
 			}
 		}
 
-		self::persist_workflow( $workflow_id, $definition, $layout_raw );
+		self::persist_workflow( $workflow_id, $definition, $layout_raw, $external_surfaces );
 
 		return array(
 			'post_id'  => $workflow_id,

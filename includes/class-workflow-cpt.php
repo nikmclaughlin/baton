@@ -22,6 +22,19 @@ final class Baton_Workflow_CPT {
 
 	public const META_LAYOUT = '_baton_editor_layout';
 
+	public const META_SURFACES = '_baton_external_surfaces';
+
+	/**
+	 * External run surface the editor can enable (B2: REST only; CLI/MCP
+	 * slugs may join this map later).
+	 */
+	public const SURFACE_REST = 'rest';
+
+	/**
+	 * Known surface slugs for the exposure map; unknown values are dropped.
+	 */
+	public const AVAILABLE_SURFACES = array( self::SURFACE_REST );
+
 	/**
 	 * Register post type.
 	 */
@@ -52,6 +65,16 @@ final class Baton_Workflow_CPT {
 				'single'            => true,
 				'show_in_rest'      => false,
 				'sanitize_callback' => array( self::class, 'sanitize_layout' ),
+			)
+		);
+		register_post_meta(
+			self::POST_TYPE,
+			self::META_SURFACES,
+			array(
+				'type'              => 'array',
+				'single'            => true,
+				'show_in_rest'      => false,
+				'sanitize_callback' => array( self::class, 'sanitize_surfaces' ),
 			)
 		);
 	}
@@ -149,6 +172,99 @@ final class Baton_Workflow_CPT {
 	 */
 	public static function save_layout( int $post_id, array $layout ): void {
 		update_post_meta( $post_id, self::META_LAYOUT, $layout );
+	}
+
+	/**
+	 * Get the enabled external-execution surfaces for a workflow.
+	 *
+	 * Room for 'cli', 'mcp' etc. later; unknown or corrupt stored values are
+	 * stripped; the default is empty (not exposed).
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array<int, string> Enabled surface slugs.
+	 */
+	public static function get_surfaces( int $post_id ): array {
+		$stored = get_post_meta( $post_id, self::META_SURFACES, true );
+
+		if ( ! is_array( $stored ) ) {
+			return array();
+		}
+
+		return array_values( array_intersect( $stored, self::AVAILABLE_SURFACES ) );
+	}
+
+	/**
+	 * Save the external-execution surface map for a post.
+	 *
+	 * An empty map removes the meta key entirely (default state = not
+	 * exposed).
+	 *
+	 * @param int               $post_id  Post ID.
+	 * @param array<int, mixed> $surfaces Raw surface slugs (sanitized here).
+	 */
+	public static function save_surfaces( int $post_id, array $surfaces ): void {
+		$clean = self::sanitize_surfaces( $surfaces );
+
+		if ( empty( $clean ) ) {
+			delete_post_meta( $post_id, self::META_SURFACES );
+			return;
+		}
+
+		update_post_meta( $post_id, self::META_SURFACES, $clean );
+	}
+
+	/**
+	 * Sanitize the external-surface map: list of enabled surface slugs.
+	 *
+	 * Accepts a string-keyed array, a JSON string (the editor's hidden
+	 * field), or anything else (no surfaces). Unknown slugs are dropped;
+	 * duplicates collapse. Example input: [ 'rest' ].
+	 *
+	 * @param mixed $raw Raw surfaces payload.
+	 * @return array<int, string> Sanitized surface slugs.
+	 */
+	public static function sanitize_surfaces( $raw ): array {
+		if ( is_string( $raw ) ) {
+			$decoded = json_decode( $raw, true );
+			$raw     = is_array( $decoded ) ? $decoded : array();
+		}
+
+		if ( ! is_array( $raw ) ) {
+			return array();
+		}
+
+		$clean = array();
+		foreach ( $raw as $slug ) {
+			$key = is_string( $slug ) ? sanitize_key( $slug ) : '';
+			if (
+				'' === $key
+				|| ! in_array( $key, self::AVAILABLE_SURFACES, true )
+				|| in_array( $key, $clean, true )
+			) {
+				continue;
+			}
+			$clean[] = $key;
+		}
+
+		return $clean;
+	}
+
+	/**
+	 * Normalize a surfaces request payload from a save request.
+	 *
+	 * Null means no surface payload was sent — leave the stored map
+	 * untouched (older editor builds); present values (array or JSON
+	 * string) are sanitized to the enabled slugs, garbage clears.
+	 *
+	 * @param mixed $raw Raw request value.
+	 * @return array<int, string>|null Sanitized surfaces, or null to keep the stored map.
+	 */
+	public static function decode_surfaces_param( $raw ): ?array {
+		if ( null === $raw ) {
+			return null;
+		}
+
+		return self::sanitize_surfaces( $raw );
 	}
 
 	/**
