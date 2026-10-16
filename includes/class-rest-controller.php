@@ -196,15 +196,21 @@ final class Baton_Rest_Controller {
 			);
 		}
 
-		$result = Baton_Admin::save_workflow_post(
-			array(
-				'title'       => $title,
-				'excerpt'     => $excerpt,
-				'definition'  => $decoded,
-				'layout_raw'  => self::layout_raw_from( $request ),
-				'workflow_id' => absint( $request->get_param( 'workflow_id' ) ),
-			)
+		$save_args = array(
+			'title'       => $title,
+			'excerpt'     => $excerpt,
+			'definition'  => $decoded,
+			'layout_raw'  => self::layout_raw_from( $request ),
+			'workflow_id' => absint( $request->get_param( 'workflow_id' ) ),
 		);
+
+		// B2: per-workflow external-execution surface map (array in the JSON
+		// body). Absent (older editor builds) = keep the stored map.
+		if ( $request->has_param( 'external_surfaces' ) ) {
+			$save_args['external_surfaces'] = $request->get_param( 'external_surfaces' );
+		}
+
+		$result = Baton_Admin::save_workflow_post( $save_args );
 
 		if ( is_wp_error( $result ) ) {
 			return self::save_error_to_rest( $result );

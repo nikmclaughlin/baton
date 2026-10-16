@@ -69,6 +69,7 @@ final class Baton_Plugin {
 		Baton_Utility_Abilities::register();
 		Baton_Admin::register();
 		Baton_Rest_Controller::register();
+		Baton_External_Execution::register();
 	}
 
 	/**
