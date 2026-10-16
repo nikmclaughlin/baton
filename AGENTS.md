@@ -14,7 +14,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 
 | Concept | Implementation |
 |--------|----------------|
-| Workflow storage | CPT `baton_workflow` (no public UI); definition in meta `_baton_workflow_definition`, editor layout in `_baton_editor_layout` |
+| Workflow storage | CPT `baton_workflow` (no public UI); definition in meta `_baton_workflow_definition`, editor layout in `_baton_editor_layout`, external-surface map in `_baton_external_surfaces` |
 | Step execution | `Baton_Workflow_Runner` — sequential steps via `WP_Ability::execute()` |
 | Data between steps | **Data filters** (`input_mappings`) on edges between nodes; dot-path extraction via `Baton_Input_Mapper` |
 | Workflow-as-ability | `Baton_Workflow_Abilities` registers `baton/workflow-{id}` under category `baton-workflows` at `wp_abilities_api_init` only (see WP 6.9 note below) |
@@ -23,6 +23,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall; static-cached `table_exists()`); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
 | Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
+| External execution (B2) | Per-workflow opt-in surface map `['_baton_external_surfaces']` = `['rest']` via the editor's "Expose externally (REST)" checkbox; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`, and `Baton_External_Execution` appends a `log` row ("External run") for every run dispatched through core's `wp-abilities/v1/abilities/{name}/run` route |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
 
 ### Workflow definition (meta JSON)
@@ -47,6 +48,10 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 - **`use_previous_output`**: legacy flag; runner still honors it when no mappings exist.
 - **`input_mappings`**: maps from `initial` (step 1 only) or `previous` step output via dot paths into ability input fields. Scalar abilities use an empty `target` and path-only rows.
 - Sanitization: `Baton_Workflow_CPT::sanitize_definition()` + `Baton_Input_Mapper::sanitize_mappings()`.
+
+### External REST execution (B2)
+
+`Baton_Workflow_Abilities::register_workflow_ability()` sets the ability's `show_in_rest` meta true only when the workflow's surface map (`_baton_external_surfaces`) contains `rest` — i.e. the editor's "Expose externally (REST)" checkbox. Exposed abilities are served and executable through core's `wp-abilities/v1` REST routes (visible in the abilities list to users who can `read`; execution still requires the ability permission callback → `manage_options`, e.g. application-password machine callers). External callers POST `{ "input": {…} }` to `/wp-json/wp-abilities/v1/abilities/baton/workflow-{id}/run`; the success body is the raw last-step output. Baton never touches the core controller: `Baton_External_Execution` watches the before/after-callbacks dispatch filters (per-request keyed) to (a) distinguish external runs from the `baton/v1` admin-run endpoint and nested execution and (b) append a `kind = log` row (label "External run", value: trigger/input/success/error) via `Baton_Saved_Values`.
 
 ### Execution flow
 
@@ -102,6 +107,7 @@ includes/
   class-workflow-cpt.php  # CPT + meta get/save/sanitize (definition + layout)
   class-workflow-runner.php
   class-workflow-abilities.php
+  class-external-execution.php  # external (REST) run context + run logging
   class-saved-values.php  # Custom-table storage for save/state/log rows
   class-utility-abilities.php  # baton-utility category + shared schema helpers
   class-save-output-ability.php  # baton/save-output "Save output"
@@ -180,7 +186,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 ## Known gaps / roadmap
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- **External workflow execution** — the `baton/v1` REST routes serve the admin; exposing workflow abilities for external tooling is a separate decision (flip `show_in_rest` on workflow abilities so core's `/abilities/v1/{name}/run` route serves them; changes external attack surface).
+- **CLI & MCP external surfaces** — B2 added per-workflow opt-in REST exposure (`_baton_external_surfaces` = `['rest']`); CLI and MCP surface slugs (and their triggers/permission surfaces) remain future decisions.
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
