@@ -96,7 +96,7 @@ final class Baton_Save_State_Ability {
 		if ( null === $saved['id'] ) {
 			return new WP_Error(
 				'baton_save_state_failed',
-				__( 'The latest value could not be written.', 'baton' )
+				__( 'The latest value could not be written.', 'baton' ) . Baton_Utility_Abilities::storage_error_suffix()
 			);
 		}
 

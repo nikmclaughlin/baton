@@ -134,7 +134,7 @@ final class Baton_Log_Ability {
 		if ( null === $saved['id'] ) {
 			return new WP_Error(
 				'baton_log_failed',
-				__( 'The log entry could not be written.', 'baton' )
+				__( 'The log entry could not be written.', 'baton' ) . Baton_Utility_Abilities::storage_error_suffix()
 			);
 		}
 

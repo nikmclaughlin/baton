@@ -212,4 +212,29 @@ final class Baton_Utility_Abilities {
 	public static function can_manage_options(): bool {
 		return current_user_can( self::PERMISSION );
 	}
+
+	/**
+	 * Storage-failure context appended to a utility ability's error message.
+	 *
+	 * `$wpdb->last_error` holds the MySQL error from the most recent query
+	 * (empty when that query succeeded), so appending it to a failed write or
+	 * read makes the failure diagnosable from the run report — e.g.
+	 * "Table … doesn't exist" when the saved-values table was never migrated.
+	 * Error codes and schemas are unchanged; only the message gains context,
+	 * and only when the storage layer actually reported an error.
+	 *
+	 * @return string Suffix ('' when the last storage query was clean).
+	 */
+	public static function storage_error_suffix(): string {
+		global $wpdb;
+
+		$last_error = trim( (string) $wpdb->last_error );
+
+		if ( '' === $last_error ) {
+			return '';
+		}
+
+		/* translators: %s: MySQL error reported by the last storage query. */
+		return ' ' . sprintf( __( 'Storage error: %s', 'baton' ), $last_error );
+	}
 }

@@ -115,13 +115,15 @@ final class Baton_Load_Output_Ability {
 		);
 
 		if ( null === $row ) {
+			// A read that hit a real storage error (e.g. missing table) is
+			// diagnosable; a clean miss keeps the plain not-found message.
 			return new WP_Error(
 				'baton_load_output_not_found',
 				sprintf(
 					/* translators: %s: value label */
 					__( 'No saved value found for label "%s".', 'baton' ),
 					$label
-				)
+				) . Baton_Utility_Abilities::storage_error_suffix()
 			);
 		}
 

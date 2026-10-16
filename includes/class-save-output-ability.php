@@ -97,7 +97,7 @@ final class Baton_Save_Output_Ability {
 		if ( null === $saved['id'] ) {
 			return new WP_Error(
 				'baton_save_output_failed',
-				__( 'The saved output could not be written.', 'baton' )
+				__( 'The saved output could not be written.', 'baton' ) . Baton_Utility_Abilities::storage_error_suffix()
 			);
 		}
 

@@ -529,4 +529,65 @@ class Test_Utility_Abilities extends WP_UnitTestCase {
 			}
 		}
 	}
+
+	/**
+	 * Storage failures stay diagnosable: when the storage layer reports a
+	 * MySQL error (e.g. the table was never migrated), every utility's
+	 * failure message gains the storage error while the error code — and so
+	 * the run-report contract — stays unchanged.
+	 */
+	public function test_storage_failures_include_wpdb_error_context(): void {
+		Baton_Saved_Values::uninstall();
+
+		$log = self::run_ability(
+			'baton/log',
+			array(
+				'message' => 'an entry',
+				'run_id'  => 'run-1',
+			)
+		);
+		$this->assertInstanceOf( WP_Error::class, $log );
+		$this->assertSame( 'baton_log_failed', $log->get_error_code() );
+		$this->assertStringContainsString( 'The log entry could not be written.', $log->get_error_message() );
+		$this->assertStringContainsString( 'Storage error:', $log->get_error_message() );
+
+		$save = self::run_ability(
+			'baton/save-output',
+			array(
+				'label' => 'artifact',
+				'value' => 1,
+			)
+		);
+		$this->assertInstanceOf( WP_Error::class, $save );
+		$this->assertSame( 'baton_save_output_failed', $save->get_error_code() );
+		$this->assertStringContainsString( 'The saved output could not be written.', $save->get_error_message() );
+		$this->assertStringContainsString( 'Storage error:', $save->get_error_message() );
+
+		$state = self::run_ability(
+			'baton/save-state',
+			array(
+				'label' => 'cursor',
+				'value' => 1,
+			)
+		);
+		$this->assertInstanceOf( WP_Error::class, $state );
+		$this->assertSame( 'baton_save_state_failed', $state->get_error_code() );
+		$this->assertStringContainsString( 'The latest value could not be written.', $state->get_error_message() );
+		$this->assertStringContainsString( 'Storage error:', $state->get_error_message() );
+
+		$load = self::run_ability( 'baton/load-output', array( 'label' => 'missing-thing' ) );
+		$this->assertInstanceOf( WP_Error::class, $load );
+		$this->assertSame( 'baton_load_output_not_found', $load->get_error_code() );
+		$this->assertStringContainsString( 'No saved value found for label', $load->get_error_message() );
+		$this->assertStringContainsString( 'Storage error:', $load->get_error_message() );
+
+		// Once the table is back, clean misses carry no storage-context text
+		// (the suffix only appears when the storage layer reported an error).
+		Baton_Saved_Values::install();
+		$clean_miss = self::run_ability( 'baton/load-output', array( 'label' => 'never-saved-anything' ) );
+		$this->assertInstanceOf( WP_Error::class, $clean_miss );
+		$this->assertSame( 'baton_load_output_not_found', $clean_miss->get_error_code() );
+		$this->assertStringContainsString( 'No saved value found for label', $clean_miss->get_error_message() );
+		$this->assertStringNotContainsString( 'Storage error:', $clean_miss->get_error_message() );
+	}
 }
