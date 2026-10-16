@@ -292,3 +292,19 @@
 	white-space: pre-wrap;
 	word-break: break-word;
 }
+
+/* Live refresh: briefly highlight the newest run's rows after a swap */
+.baton-run__row--fresh {
+	animation: baton-row-flash 1.4s ease-out 1;
+}
+
+@keyframes baton-row-flash {
+
+	0% {
+		background-color: #f0f6fc;
+	}
+
+	100% {
+		background-color: transparent;
+	}
+}

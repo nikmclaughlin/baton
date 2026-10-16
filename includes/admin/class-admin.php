@@ -475,9 +475,10 @@ final class Baton_Admin {
 			'baton-admin-run',
 			'Baton',
 			array(
-				'runUrl'  => Baton_Rest_Controller::run_url( $post_id ),
-				'nonce'   => wp_create_nonce( 'wp_rest' ),
-				'strings' => array(
+				'runUrl'    => Baton_Rest_Controller::run_url( $post_id ),
+				'viewerUrl' => Baton_Rest_Controller::viewer_url( $post_id ),
+				'nonce'     => wp_create_nonce( 'wp_rest' ),
+				'strings'   => array(
 					'running'     => __( 'Running workflow…', 'baton' ),
 					'runSuccess'  => __( 'Workflow completed successfully.', 'baton' ),
 					'runFailed'   => __( 'Workflow failed.', 'baton' ),

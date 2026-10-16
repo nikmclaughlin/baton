@@ -31,6 +31,60 @@
 		}
 	}
 
+	function refreshViewer() {
+		const panel = document.getElementById( 'baton-saved-values' );
+		if ( ! panel || ! cfg.viewerUrl || ! cfg.nonce ) {
+			return;
+		}
+
+		fetch( cfg.viewerUrl, {
+			method: 'GET',
+			headers: {
+				'X-WP-Nonce': cfg.nonce,
+			},
+			credentials: 'same-origin',
+		} )
+			.then( function ( response ) {
+				if ( ! response.ok ) {
+					throw new Error( 'Viewer refresh failed.' );
+				}
+				return response.json();
+			} )
+			.then( function ( data ) {
+				const html = data && typeof data.html === 'string' ? data.html : '';
+				if ( ! html ) {
+					return;
+				}
+
+				const wrapper = document.createElement( 'div' );
+				wrapper.innerHTML = html;
+				const fresh = wrapper.firstElementChild;
+				if ( ! fresh || fresh.id !== 'baton-saved-values' ) {
+					return;
+				}
+
+				panel.replaceWith( fresh );
+				flashNewestRows( fresh );
+			} )
+			.catch( function () {
+				// Silent fallback: the panel keeps its current content.
+			} );
+	}
+
+	function flashNewestRows( panel ) {
+		const rows = panel.querySelectorAll(
+			'.baton-run:first-of-type .baton-run__row'
+		);
+		for ( let i = 0; i < rows.length; i++ ) {
+			rows[ i ].classList.add( 'baton-run__row--fresh' );
+		}
+		setTimeout( function () {
+			for ( let i = 0; i < rows.length; i++ ) {
+				rows[ i ].classList.remove( 'baton-run__row--fresh' );
+			}
+		}, 1500 );
+	}
+
 	var RunPanel = {
 		init() {
 			const btn = document.getElementById( 'aw-run-workflow' );
@@ -300,6 +354,10 @@
 			}
 
 			results.innerHTML = html;
+
+			// Any completed run may have appended rows: refresh the
+			// saved-values panel in place (silent no-op on failure).
+			refreshViewer();
 		},
 	};
 
