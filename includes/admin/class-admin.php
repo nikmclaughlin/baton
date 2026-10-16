@@ -33,6 +33,10 @@ final class Baton_Admin {
 
 		// Saved-value viewer on the edit screen (delete actions on admin_init).
 		Baton_Run_Viewer::register();
+
+		// Missing-table detection + one-click dbDelta migration (admin_init
+		// action, admin_notices render).
+		Baton_Migration_Notice::register();
 	}
 
 	/**
