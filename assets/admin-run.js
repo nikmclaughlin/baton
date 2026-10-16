@@ -147,9 +147,15 @@
 			window.__batonLastReport = report;
 			window.BatonCopyTrace = function ( btn ) {
 				const postField = document.getElementById( 'post_ID' );
+				const editorConfig = window.BatonEditor || {};
+				const workflowId = editorConfig.postId
+					? editorConfig.postId
+					: postField
+						? postField.value
+						: null;
 				const trace = {
 					site: window.location.origin,
-					workflow_id: postField ? postField.value : null,
+					workflow_id: workflowId,
 					generated_at: new Date().toISOString(),
 					purpose: 'Baton run trace for troubleshooting',
 					report: window.__batonLastReport || {},
