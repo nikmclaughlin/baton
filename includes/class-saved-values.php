@@ -38,6 +38,13 @@ final class Baton_Saved_Values {
 	public const MAX_LABEL_CHARS = 190;
 
 	/**
+	 * Cached table-existence result (one SHOW TABLES per request).
+	 *
+	 * @var bool|null Null until the first check in this request.
+	 */
+	private static $table_exists_cache = null;
+
+	/**
 	 * Full table name for the current site prefix.
 	 *
 	 * @return string
@@ -75,7 +82,8 @@ final class Baton_Saved_Values {
 	}
 
 	/**
-	 * Create/migrate the table (dbDelta) — plugin activation path.
+	 * Create/migrate the table (dbDelta) — plugin activation path, and the
+	 * admin "Run database migration" repair action.
 	 */
 	public static function install(): void {
 		if ( ! function_exists( 'dbDelta' ) ) {
@@ -83,6 +91,8 @@ final class Baton_Saved_Values {
 		}
 
 		dbDelta( self::schema() );
+
+		self::reset_table_exists();
 	}
 
 	/**
@@ -93,6 +103,41 @@ final class Baton_Saved_Values {
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- DDL cannot be prepared; identifier built from $wpdb->prefix.
 		$wpdb->query( 'DROP TABLE IF EXISTS ' . self::table_name() );
+
+		self::reset_table_exists();
+	}
+
+	/**
+	 * Whether the storage table exists (static-cached: one check per request).
+	 *
+	 * Creation runs on activation only (dbDelta), so a replaced/restored
+	 * database can leave an active plugin without its table. This powers the
+	 * admin migration notice; install() and uninstall() keep the cache
+	 * truthful after DDL. Direct DDL bypassing these methods will see stale
+	 * results for the remainder of the request.
+	 *
+	 * @return bool
+	 */
+	public static function table_exists(): bool {
+		if ( null !== self::$table_exists_cache ) {
+			return self::$table_exists_cache;
+		}
+
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Introspection query; identifier built from $wpdb->prefix, value is prepared.
+		$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', self::table_name() ) );
+
+		self::$table_exists_cache = is_string( $found ) && '' !== $found;
+
+		return self::$table_exists_cache;
+	}
+
+	/**
+	 * Clear the table-existence cache after DDL.
+	 */
+	private static function reset_table_exists(): void {
+		self::$table_exists_cache = null;
 	}
 
 	/**

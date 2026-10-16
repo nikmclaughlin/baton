@@ -435,4 +435,41 @@ class Test_Saved_Values extends WP_UnitTestCase {
 		$this->assertSame( 0, Baton_Saved_Values::delete_run_for_workflow( '', 9 ) );
 		$this->assertSame( 0, Baton_Saved_Values::delete_run_for_workflow( 'run-missing', 9 ) );
 	}
+
+	/**
+	 * table_exists() reflects the real table state across uninstall/install.
+	 */
+	public function test_table_exists_tracks_table_state(): void {
+		$this->assertTrue( Baton_Saved_Values::table_exists() );
+
+		Baton_Saved_Values::uninstall();
+		$this->assertFalse( Baton_Saved_Values::table_exists() );
+
+		// Re-installing recreates the table (the admin migration action path)
+		// and table_exists() reports it again.
+		Baton_Saved_Values::install();
+		$this->assertTrue( Baton_Saved_Values::table_exists() );
+
+		// Writes work again on the recreated table.
+		$saved = Baton_Saved_Values::append( Baton_Saved_Values::KIND_SAVE, 7, 'run-a', 's', 'v', '' );
+		$this->assertNotNull( $saved['id'] );
+		$this->assertNotNull( Baton_Saved_Values::find( 's', 7 ) );
+	}
+
+	/**
+	 * table_exists() is static-cached: checks between DDL calls do not
+	 * re-query, and install()/uninstall() reset the cache.
+	 */
+	public function test_table_exists_is_cached_between_checks(): void {
+		$this->assertTrue( Baton_Saved_Values::table_exists() ); // primes the cache.
+
+		// Direct DDL (no cache reset) — the cached truth still stands for
+		// this request; that staleness is why install()/uninstall() reset it.
+		global $wpdb;
+		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		$this->assertTrue( Baton_Saved_Values::table_exists() );
+
+		Baton_Saved_Values::install(); // resets the cache and recreates the table.
+		$this->assertTrue( Baton_Saved_Values::table_exists() );
+	}
 }
