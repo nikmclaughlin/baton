@@ -37,7 +37,7 @@ The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/work
 **External execution.** Each workflow can be exposed per channel via the editor's **Expose externally** checkboxes — one for the core Abilities REST API, one for WP-CLI. Both are per-workflow opt-in (default off = zero external surface) and both record every externally triggered run as an "External run" log row in the workflow's saved-values viewer.
 
 - **REST** — a workflow with *Expose externally (REST)* enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers). Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).
-- **WP-CLI** — a workflow with *Expose externally (WP-CLI)* enabled is listed and runnable with `wp baton` (this requires [WP-CLI](https://wp-cli.org/) on the server). CLI runs execute in admin context:
+- **WP-CLI** — a workflow with *Expose externally (WP-CLI)* enabled is listed and runnable with `wp baton` (this requires [WP-CLI](https://wp-cli.org/) on the server). CLI runs authenticate with WP-CLI's `--user` — they do **not** inherit your admin browser session, so pass `--user=<admin-login>` for workflows with privileged abilities (without it the request is unauthenticated and each ability's permission check fails):
 
 	```bash
 	wp baton list --format=table|json|csv   # workflows exposed for CLI
