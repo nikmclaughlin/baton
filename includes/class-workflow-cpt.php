@@ -31,9 +31,14 @@ final class Baton_Workflow_CPT {
 	public const SURFACE_REST = 'rest';
 
 	/**
+	 * External run surface: WP-CLI (`wp baton` commands, admin context).
+	 */
+	public const SURFACE_CLI = 'cli';
+
+	/**
 	 * Known surface slugs for the exposure map; unknown values are dropped.
 	 */
-	public const AVAILABLE_SURFACES = array( self::SURFACE_REST );
+	public const AVAILABLE_SURFACES = array( self::SURFACE_REST, self::SURFACE_CLI );
 
 	/**
 	 * Register post type.
@@ -177,8 +182,8 @@ final class Baton_Workflow_CPT {
 	/**
 	 * Get the enabled external-execution surfaces for a workflow.
 	 *
-	 * Room for 'cli', 'mcp' etc. later; unknown or corrupt stored values are
-	 * stripped; the default is empty (not exposed).
+	 * Unknown or corrupt stored values are stripped; the default is empty
+	 * (not exposed).
 	 *
 	 * @param int $post_id Post ID.
 	 * @return array<int, string> Enabled surface slugs.
@@ -191,6 +196,17 @@ final class Baton_Workflow_CPT {
 		}
 
 		return array_values( array_intersect( $stored, self::AVAILABLE_SURFACES ) );
+	}
+
+	/**
+	 * Whether one workflow enables an external-execution surface.
+	 *
+	 * @param int    $post_id Workflow post ID.
+	 * @param string $surface Surface slug (self::SURFACE_*).
+	 * @return bool
+	 */
+	public static function has_surface( int $post_id, string $surface ): bool {
+		return in_array( $surface, self::get_surfaces( $post_id ), true );
 	}
 
 	/**

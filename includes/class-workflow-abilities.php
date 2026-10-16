@@ -181,10 +181,9 @@ final class Baton_Workflow_Abilities {
 					// Per-workflow opt-in (B2): core's abilities REST routes
 					// 404 anything without show_in_rest, so unexposed
 					// workflows are invisible and unrunnable externally.
-					'show_in_rest' => in_array(
-						Baton_Workflow_CPT::SURFACE_REST,
-						Baton_Workflow_CPT::get_surfaces( $post_id ),
-						true
+					'show_in_rest' => Baton_Workflow_CPT::has_surface(
+						$post_id,
+						Baton_Workflow_CPT::SURFACE_REST
 					),
 				),
 			)

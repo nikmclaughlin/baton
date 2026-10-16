@@ -82,13 +82,15 @@ class Test_External_Execution extends WP_UnitTestCase {
 
 	public function test_sanitize_surfaces_keeps_only_known_slugs(): void {
 		$this->assertSame(
-			array( 'rest' ),
-			Baton_Workflow_CPT::sanitize_surfaces( array( 'rest', ' cli ', 'mcp', 'rest', 12 ) )
+			array( 'rest', 'cli' ),
+			Baton_Workflow_CPT::sanitize_surfaces( array( 'rest', ' cli ', 'mcp', 12, 'rest', 'cli' ) )
 		);
 	}
 
 	public function test_sanitize_surfaces_accepts_json_string_payload(): void {
 		$this->assertSame( array( 'rest' ), Baton_Workflow_CPT::sanitize_surfaces( '["rest"]' ) );
+		$this->assertSame( array( 'cli' ), Baton_Workflow_CPT::sanitize_surfaces( '["cli"]' ) );
+		$this->assertSame( array( 'rest', 'cli' ), Baton_Workflow_CPT::sanitize_surfaces( '["rest","cli"]' ) );
 	}
 
 	public function test_sanitize_surfaces_rejects_garbage_payloads(): void {
@@ -103,6 +105,13 @@ class Test_External_Execution extends WP_UnitTestCase {
 		$post_id = $this->create_published_workflow( array( 'rest' ) );
 
 		$this->assertSame( array( 'rest' ), Baton_Workflow_CPT::get_surfaces( $post_id ) );
+		$this->assertTrue( Baton_Workflow_CPT::has_surface( $post_id, 'rest' ) );
+		$this->assertFalse( Baton_Workflow_CPT::has_surface( $post_id, 'cli' ) );
+
+		Baton_Workflow_CPT::save_surfaces( $post_id, array( 'rest', 'cli' ) );
+
+		$this->assertSame( array( 'rest', 'cli' ), Baton_Workflow_CPT::get_surfaces( $post_id ) );
+		$this->assertTrue( Baton_Workflow_CPT::has_surface( $post_id, 'cli' ) );
 
 		wp_delete_post( $post_id, true );
 	}
