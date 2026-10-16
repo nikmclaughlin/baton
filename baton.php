@@ -33,8 +33,16 @@ require_once BATON_DIR . 'includes/class-input-mapper.php';
 require_once BATON_DIR . 'includes/class-workflow-cpt.php';
 require_once BATON_DIR . 'includes/class-workflow-runner.php';
 require_once BATON_DIR . 'includes/class-workflow-abilities.php';
+require_once BATON_DIR . 'includes/class-saved-values.php';
+require_once BATON_DIR . 'includes/class-utility-abilities.php';
+require_once BATON_DIR . 'includes/class-save-output-ability.php';
+require_once BATON_DIR . 'includes/class-save-state-ability.php';
+require_once BATON_DIR . 'includes/class-load-output-ability.php';
+require_once BATON_DIR . 'includes/class-log-ability.php';
 require_once BATON_DIR . 'includes/admin/class-workflow-list-table.php';
 require_once BATON_DIR . 'includes/admin/class-admin.php';
+require_once BATON_DIR . 'includes/admin/class-run-viewer.php';
+require_once BATON_DIR . 'includes/admin/class-migration-notice.php';
 require_once BATON_DIR . 'includes/class-rest-controller.php';
 require_once BATON_DIR . 'includes/class-plugin.php';
 

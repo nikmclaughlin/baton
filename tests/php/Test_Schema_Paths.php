@@ -299,4 +299,81 @@ class Test_Schema_Paths extends WP_UnitTestCase {
 		$this->assertSame( 'object', $by_value['meta'] ?? null );
 		$this->assertSame( 'boolean', $by_value['meta.flag'] ?? null );
 	}
+
+	/**
+	 * A utility-style schema: label/value are user fields; the runner-filled
+	 * context trio carries the x-baton marker.
+	 */
+	private function utility_like_schema(): array {
+		return array(
+			'type'       => 'object',
+			'properties' => array(
+				'label'       => array( 'type' => 'string' ),
+				'value'       => array( 'type' => array( 'string', 'integer' ) ),
+				'run_id'      => array( 'type' => 'string', 'x-baton' => 'context' ),
+				'workflow_id' => array( 'type' => 'integer', 'x-baton' => 'context' ),
+				'step_id'     => array( 'type' => 'string', 'x-baton' => 'context' ),
+			),
+			'required'   => array( 'label' ),
+		);
+	}
+
+	public function test_is_context_property(): void {
+		$this->assertTrue( Baton_Schema_Paths::is_context_property( array( 'type' => 'string', 'x-baton' => 'context' ) ) );
+		$this->assertFalse( Baton_Schema_Paths::is_context_property( array( 'type' => 'string', 'x-baton' => 'other' ) ) );
+		$this->assertFalse( Baton_Schema_Paths::is_context_property( array( 'type' => 'string' ) ) );
+	}
+
+	public function test_visible_property_keys_excludes_context_fields(): void {
+		$this->assertSame(
+			array( 'label', 'value' ),
+			Baton_Schema_Paths::visible_property_keys( $this->utility_like_schema() )
+		);
+		$this->assertSame(
+			array(),
+			Baton_Schema_Paths::visible_property_keys( array() )
+		);
+	}
+
+	public function test_context_fields_hidden_from_mappable_paths(): void {
+		$paths  = Baton_Schema_Paths::get_paths( $this->utility_like_schema() );
+		$values = array_column( $paths, 'value' );
+
+		$this->assertContains( 'label', $values );
+		$this->assertContains( 'value', $values );
+		$this->assertNotContains( 'run_id', $values );
+		$this->assertNotContains( 'workflow_id', $values );
+		$this->assertNotContains( 'step_id', $values );
+	}
+
+	public function test_context_fields_hidden_from_input_target_catalog(): void {
+		$catalog = Baton_Schema_Paths::input_target_catalog( $this->utility_like_schema() );
+
+		$this->assertTrue( $catalog['selectable'] );
+
+		$targets = array_column( $catalog['targets'], 'value' );
+
+		$this->assertSame( array( 'label', 'value' ), $targets );
+	}
+
+	public function test_input_summary_hides_context_fields(): void {
+		$summary = Baton_Schema_Paths::io_summary( $this->utility_like_schema() );
+
+		$this->assertSame( 'object', $summary['kind'] );
+		$this->assertSame( 'Object · label, value', $summary['summary'] );
+		$this->assertStringNotContainsString( 'run_id', $summary['summary'] );
+	}
+
+	public function test_nested_context_fields_are_not_mangled_for_normal_schemas(): void {
+		$schema = array(
+			'type'       => 'object',
+			'properties' => array(
+				'run_id' => array( 'type' => 'integer' ),
+			),
+		);
+
+		// A run_id WITHOUT the x-baton marker stays mappable (contract, not marker).
+		$values = array_column( Baton_Schema_Paths::get_paths( $schema ), 'value' );
+		$this->assertContains( 'run_id', $values );
+	}
 }

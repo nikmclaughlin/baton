@@ -31,6 +31,60 @@
 		}
 	}
 
+	function refreshViewer() {
+		const panel = document.getElementById( 'baton-saved-values' );
+		if ( ! panel || ! cfg.viewerUrl || ! cfg.nonce ) {
+			return;
+		}
+
+		fetch( cfg.viewerUrl, {
+			method: 'GET',
+			headers: {
+				'X-WP-Nonce': cfg.nonce,
+			},
+			credentials: 'same-origin',
+		} )
+			.then( function ( response ) {
+				if ( ! response.ok ) {
+					throw new Error( 'Viewer refresh failed.' );
+				}
+				return response.json();
+			} )
+			.then( function ( data ) {
+				const html = data && typeof data.html === 'string' ? data.html : '';
+				if ( ! html ) {
+					return;
+				}
+
+				const wrapper = document.createElement( 'div' );
+				wrapper.innerHTML = html;
+				const fresh = wrapper.firstElementChild;
+				if ( ! fresh || fresh.id !== 'baton-saved-values' ) {
+					return;
+				}
+
+				panel.replaceWith( fresh );
+				flashNewestRows( fresh );
+			} )
+			.catch( function () {
+				// Silent fallback: the panel keeps its current content.
+			} );
+	}
+
+	function flashNewestRows( panel ) {
+		const rows = panel.querySelectorAll(
+			'.baton-run:first-of-type .baton-run__row'
+		);
+		for ( let i = 0; i < rows.length; i++ ) {
+			rows[ i ].classList.add( 'baton-run__row--fresh' );
+		}
+		setTimeout( function () {
+			for ( let i = 0; i < rows.length; i++ ) {
+				rows[ i ].classList.remove( 'baton-run__row--fresh' );
+			}
+		}, 1500 );
+	}
+
 	var RunPanel = {
 		init() {
 			const btn = document.getElementById( 'aw-run-workflow' );
@@ -144,6 +198,54 @@
 
 			let html = '';
 
+			window.__batonLastReport = report;
+			window.BatonCopyTrace = function ( btn ) {
+				const postField = document.getElementById( 'post_ID' );
+				const editorConfig = window.BatonEditor || {};
+				const workflowId = editorConfig.postId
+					? editorConfig.postId
+					: postField
+						? postField.value
+						: null;
+				const trace = {
+					site: window.location.origin,
+					workflow_id: workflowId,
+					generated_at: new Date().toISOString(),
+					purpose: 'Baton run trace for troubleshooting',
+					report: window.__batonLastReport || {},
+				};
+				const text = JSON.stringify( trace, null, 2 );
+				const done = function () {
+					const label = btn.textContent;
+					btn.textContent = strings.copyTraceDone || 'Copied ✓';
+					setTimeout( function () {
+						btn.textContent = label;
+					}, 2000 );
+				};
+				const fallbackCopy = function ( t ) {
+					const ta = document.createElement( 'textarea' );
+					ta.value = t;
+					document.body.appendChild( ta );
+					ta.select();
+					try {
+						document.execCommand( 'copy' );
+					} catch ( e ) {}
+					document.body.removeChild( ta );
+				};
+				if ( navigator.clipboard && navigator.clipboard.writeText ) {
+					navigator.clipboard
+						.writeText( text )
+						.then( done )
+						.catch( function () {
+							fallbackCopy( text );
+							done();
+						} );
+				} else {
+					fallbackCopy( text );
+					done();
+				}
+			};
+
 			if ( report.success ) {
 				html +=
 					'<div class="notice notice-success"><p>' +
@@ -161,6 +263,10 @@
 							'Workflow failed.'
 					) +
 					'</p></div>';
+				html +=
+					'<p><button type="button" class="button button-secondary" onclick="window.BatonCopyTrace( this )">' +
+					( strings.copyTrace || 'Copy trace' ) +
+					'</button></p>';
 			}
 
 			if ( report.steps && report.steps.length ) {
@@ -248,6 +354,10 @@
 			}
 
 			results.innerHTML = html;
+
+			// Any completed run may have appended rows: refresh the
+			// saved-values panel in place (silent no-op on failure).
+			refreshViewer();
 		},
 	};
 

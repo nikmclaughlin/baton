@@ -30,6 +30,13 @@ final class Baton_Admin {
 		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
 		add_action( 'admin_init', array( self::class, 'maybe_handle_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_assets' ) );
+
+		// Saved-value viewer on the edit screen (delete actions on admin_init).
+		Baton_Run_Viewer::register();
+
+		// Missing-table detection + one-click dbDelta migration (admin_init
+		// action, admin_notices render).
+		Baton_Migration_Notice::register();
 	}
 
 	/**
@@ -210,6 +217,7 @@ final class Baton_Admin {
 
 		if ( $post_id > 0 ) {
 			self::render_run_panel( $post_id, $definition );
+			self::render_saved_values_panel( $post_id );
 		}
 
 		echo '</div>';
@@ -250,6 +258,15 @@ final class Baton_Admin {
 		echo '<p><button type="button" class="button button-primary" id="aw-run-workflow" data-workflow-id="' . esc_attr( (string) $post_id ) . '" data-label="' . esc_attr( $run_label ) . '">' . esc_html( $run_label ) . '</button></p>';
 		echo '<div id="aw-run-results" class="aw-run-results" hidden></div>';
 		echo '</div>';
+	}
+
+	/**
+	 * Saved values & logs panel below the run panel (viewer for Baton_Saved_Values).
+	 *
+	 * @param int $post_id Workflow post ID.
+	 */
+	private static function render_saved_values_panel( int $post_id ): void {
+		Baton_Run_Viewer::render( $post_id );
 	}
 
 	/**
@@ -458,9 +475,10 @@ final class Baton_Admin {
 			'baton-admin-run',
 			'Baton',
 			array(
-				'runUrl'  => Baton_Rest_Controller::run_url( $post_id ),
-				'nonce'   => wp_create_nonce( 'wp_rest' ),
-				'strings' => array(
+				'runUrl'    => Baton_Rest_Controller::run_url( $post_id ),
+				'viewerUrl' => Baton_Rest_Controller::viewer_url( $post_id ),
+				'nonce'     => wp_create_nonce( 'wp_rest' ),
+				'strings'   => array(
 					'running'     => __( 'Running workflow…', 'baton' ),
 					'runSuccess'  => __( 'Workflow completed successfully.', 'baton' ),
 					'runFailed'   => __( 'Workflow failed.', 'baton' ),

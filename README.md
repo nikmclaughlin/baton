@@ -34,13 +34,30 @@ Data filters on the connections between steps control what flows between abiliti
 
 The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/workflows` and `POST /wp-json/baton/v1/workflows/{id}/run`, `manage_options` + cookie + `wp_rest` nonce), so failures surface as real HTTP status codes instead of opaque admin-ajax responses.
 
+### Baton's memory: save output, keep state, load, log
+
+Baton ships its own ability category — **Baton Utilities** — with four built-in abilities that give workflows persistence:
+
+| Ability | Purpose |
+| --- | --- |
+| `baton/save-output` | Append a permanent record (repeated labels allowed — each row is deliberate) |
+| `baton/save-state` | Keep the latest value per workflow + label (keyed upsert — "Keep latest") |
+| `baton/load-output` | Read a saved value back into a step (newest-wins lookup; not-found fails the step loudly) |
+| `baton/log` | Write an inspectable `{message, context}` entry, tagged with the run |
+
+Chain them with the usual data filters: map a previous step's output into `value`, `context`, or `message`. The classic pattern is the **cursor** — load `last_cursor` → do the work → save-state `last_cursor` — which accumulates state across runs with zero bookkeeping. Every execution gets a `run_id`; the utility abilities declare `run_id`, `workflow_id`, and `step_id` inputs that the runner fills automatically (editor-hidden, never user-set). A single stored value caps at ~1 MB, truncated writes are flagged in the run report, and values are readable only from Baton's own save steps — no arbitrary site-data reads.
+
+**Saved values & logs viewer** — each workflow's edit screen lists its stored rows grouped by run (newest first): kind chip (save / state / log), label, click-to-expand value, time, and nonced delete controls for a single row or an entire run (`manage_options`). Nothing saved is ever pruned automatically — deletes here are explicit user actions. The saves+logs timeline is one unified view by design (decision-with-revisit: kind filters or tabs are trivial to add later if real usage wants separation).
+
+**Missing-table self-healing** — dbDelta runs on activation, so a replaced or restored database can leave Baton without its storage table. Admins see a dismissible warning across the admin with a one-click **Run database migration** button (nonce-gated, `manage_options`), and a run that happens before migrating doesn't fail opaquely: ability failure messages gain the underlying `Storage error:` context (e.g. "Table … doesn't exist").
+
 
 ## Roadmap / Known Gaps 
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
 - CLI & Command Palette integrations for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
-- Database/transient integration for persisting workflow output.
+- Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.
 - Replace list table with DataViews when appropriate in core.
 - User-facing copy pass on mapper warning strings.

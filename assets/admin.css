@@ -148,3 +148,163 @@
 .baton-wrap .aw-mappings-table .aw-mapping-source {
 	min-width: 140px;
 }
+
+/* Saved values & logs viewer (workflow edit screen) */
+.baton-wrap .baton-runs-panel {
+	margin-top: 32px;
+	padding-top: 24px;
+	border-top: 1px solid #c3c4c7;
+}
+
+.baton-wrap .baton-runs-panel .baton-runs-panel__empty {
+	font-style: italic;
+}
+
+.baton-run {
+	margin: 16px 0;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.baton-run__header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	background: #f6f7f7;
+	border-bottom: 1px solid #dcdcde;
+	flex-wrap: wrap;
+}
+
+.baton-run__header .baton-run__id code {
+	font-size: 12px;
+}
+
+.baton-run__header .baton-run__meta {
+	color: #646970;
+	font-size: 12px;
+}
+
+.baton-run__header .baton-run__delete {
+	margin-left: auto;
+	text-decoration: none;
+}
+
+.baton-run__timeline {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.baton-run__row {
+	display: flow-root;
+	padding: 10px 12px;
+	border-bottom: 1px solid #f0f0f1;
+}
+
+.baton-run__row:last-child {
+	border-bottom: 0;
+}
+
+.baton-run__row--state {
+	background: #fcfcfc;
+}
+
+.baton-run__row .baton-run__chip {
+	display: inline-block;
+	padding: 1px 8px;
+	margin-right: 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.6;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.baton-run__chip--save {
+	background: #f0f6fc;
+	color: #2271b1;
+}
+
+.baton-run__chip--state {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.baton-run__chip--log {
+	background: #fcf9f0;
+	color: #996800;
+}
+
+.baton-run__row .baton-run__label {
+	font-weight: 600;
+	word-break: break-word;
+}
+
+.baton-run__row .baton-run__meta {
+	color: #646970;
+	font-size: 12px;
+	margin-left: 8px;
+}
+
+.baton-run__row .baton-run__delete {
+	float: right;
+	text-decoration: none;
+}
+
+.baton-run__row .baton-run__value-inline,
+.baton-run__row .baton-run__value summary,
+.baton-run__row .baton-run__value pre {
+	display: block;
+	margin: 6px 0 0;
+	font-size: 12px;
+}
+
+.baton-run__row .baton-run__value summary {
+	color: #646970;
+	cursor: pointer;
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 96px;
+	overflow: hidden;
+}
+
+.baton-run__row .baton-run__value summary::marker {
+	color: #2271b1;
+}
+
+.baton-run__row .baton-run__value pre {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	padding: 10px;
+	overflow: auto;
+	max-height: 320px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.baton-run__row .baton-run__value-inline {
+	background: #f6f7f7;
+	border: 1px solid #dcdcde;
+	padding: 2px 6px;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+/* Live refresh: briefly highlight the newest run's rows after a swap */
+.baton-run__row--fresh {
+	animation: baton-row-flash 1.4s ease-out 1;
+}
+
+@keyframes baton-row-flash {
+
+	0% {
+		background-color: #f0f6fc;
+	}
+
+	100% {
+		background-color: transparent;
+	}
+}

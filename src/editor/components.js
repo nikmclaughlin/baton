@@ -101,6 +101,12 @@ export function DataFilterPanel( {
 	const upstreamAbility = upstream
 		? getAbility( abilities, upstream.ability )
 		: null;
+	// A looped upstream step wraps its run-time output in an array with one
+	// entry per iteration, so its item-level paths need an array prefix to
+	// resolve: "0" targets the first entry, "*" collects from every entry.
+	const upstreamLoops = !! upstream?.loop?.field;
+	const sourceSelectable =
+		!! upstreamAbility?.source_selectable || upstreamLoops;
 
 	const [ draftMappings, setDraftMappings ] = useState( () => {
 		const saved = downstream?.input_mappings;
@@ -131,14 +137,42 @@ export function DataFilterPanel( {
 	}, [ draftMappings, savedMappings ] );
 
 	const sourceOptions = useMemo( () => {
-		if ( stepIndex === 0 || ! upstreamAbility?.source_selectable ) {
+		if ( stepIndex === 0 || ! upstreamAbility || ! sourceSelectable ) {
 			return [];
+		}
+		if ( upstreamLoops ) {
+			const itemPaths = upstreamAbility.output_paths || [];
+			const options = [
+				{
+					value: '*',
+					label: __( 'All items (whole array)', 'baton' ),
+				},
+				{
+					value: '0',
+					label: upstreamAbility.source_selectable
+						? __( 'First item (whole)', 'baton' )
+						: __( 'First item', 'baton' ),
+				},
+			];
+			itemPaths.forEach( ( p ) => {
+				options.push( {
+					value: `0.${ p.value }`,
+					label: `${ __( 'First item', 'baton' ) } · ${ p.label }`,
+				} );
+			} );
+			itemPaths.forEach( ( p ) => {
+				options.push( {
+					value: `*.${ p.value }`,
+					label: `${ __( 'Each item', 'baton' ) } · ${ p.label }`,
+				} );
+			} );
+			return options;
 		}
 		return ( upstreamAbility.output_paths || [] ).map( ( p ) => ( {
 			value: p.value,
 			label: indentNestedLabel( p.label ),
 		} ) );
-	}, [ stepIndex, upstreamAbility ] );
+	}, [ stepIndex, upstreamAbility, upstreamLoops, sourceSelectable ] );
 
 	const targetOptions = useMemo( () => {
 		if ( ! downstreamAbility?.target_selectable ) {
@@ -216,6 +250,15 @@ export function DataFilterPanel( {
 						{ ' ' }
 						({ __( 'ability output schema', 'baton' ) })
 					</span>
+					{ upstreamLoops && (
+						<span className="baton-schema-hint">
+							{ ' ' }
+							{ __(
+								'Looped step: run-time output is an array with one entry per iteration.',
+								'baton'
+							) }
+						</span>
+					) }
 				</p>
 			) }
 			{ downstreamAbility && (
@@ -239,8 +282,7 @@ export function DataFilterPanel( {
 			{ mappings.map( ( mapping, rowIndex ) => (
 				<div key={ rowIndex } className="baton-mapping-row">
 					<div className="baton-mapping-row__fields">
-						{ stepIndex > 0 &&
-						! upstreamAbility?.source_selectable ? (
+						{ stepIndex > 0 && ! sourceSelectable ? (
 							<div className="baton-mapping-readonly">
 								<span className="baton-mapping-readonly__label">
 									{ __( 'Source path', 'baton' ) }
