@@ -144,6 +144,48 @@
 
 			let html = '';
 
+			window.__batonLastReport = report;
+			window.BatonCopyTrace = function ( btn ) {
+				const postField = document.getElementById( 'post_ID' );
+				const trace = {
+					site: window.location.origin,
+					workflow_id: postField ? postField.value : null,
+					generated_at: new Date().toISOString(),
+					purpose: 'Baton run trace for troubleshooting',
+					report: window.__batonLastReport || {},
+				};
+				const text = JSON.stringify( trace, null, 2 );
+				const done = function () {
+					const label = btn.textContent;
+					btn.textContent = strings.copyTraceDone || 'Copied ✓';
+					setTimeout( function () {
+						btn.textContent = label;
+					}, 2000 );
+				};
+				const fallbackCopy = function ( t ) {
+					const ta = document.createElement( 'textarea' );
+					ta.value = t;
+					document.body.appendChild( ta );
+					ta.select();
+					try {
+						document.execCommand( 'copy' );
+					} catch ( e ) {}
+					document.body.removeChild( ta );
+				};
+				if ( navigator.clipboard && navigator.clipboard.writeText ) {
+					navigator.clipboard
+						.writeText( text )
+						.then( done )
+						.catch( function () {
+							fallbackCopy( text );
+							done();
+						} );
+				} else {
+					fallbackCopy( text );
+					done();
+				}
+			};
+
 			if ( report.success ) {
 				html +=
 					'<div class="notice notice-success"><p>' +
@@ -161,6 +203,10 @@
 							'Workflow failed.'
 					) +
 					'</p></div>';
+				html +=
+					'<p><button type="button" class="button button-secondary" onclick="window.BatonCopyTrace( this )">' +
+					( strings.copyTrace || 'Copy trace' ) +
+					'</button></p>';
 			}
 
 			if ( report.steps && report.steps.length ) {
