@@ -34,6 +34,8 @@ Data filters on the connections between steps control what flows between abiliti
 
 The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/workflows` and `POST /wp-json/baton/v1/workflows/{id}/run`, `manage_options` + cookie + `wp_rest` nonce), so failures surface as real HTTP status codes instead of opaque admin-ajax responses.
 
+**External execution (REST).** A workflow with the "Expose externally (REST)" checkbox enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers) and every external run is recorded as a log row in the workflow's saved-values viewer. Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).
+
 ### Baton's memory: save output, keep state, load, log
 
 Baton ships its own ability category — **Baton Utilities** — with four built-in abilities that give workflows persistence:

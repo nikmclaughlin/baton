@@ -357,7 +357,7 @@ export default function EditorShell( {
 					className="baton-editor__expose-rest"
 					label={ __( 'Expose externally (REST)', 'baton' ) }
 					help={ __(
-						'Serve this workflow over the core Abilities REST API for external tooling (admins only; runs are logged below).',
+						'Serve this workflow over the core Abilities REST API for external tooling. Running requires admin authentication (application passwords supported) and runs are logged below; while exposed, the workflow name and its schemas are visible to all logged-in users.',
 						'baton'
 					) }
 					checked={ surfaces.includes( 'rest' ) }
