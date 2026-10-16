@@ -13,6 +13,8 @@ declare( strict_types=1 );
  */
 class Test_Run_Viewer extends WP_UnitTestCase {
 
+	use Baton_Test_Table_State_Trait;
+
 	/**
 	 * Workflow post ID under test.
 	 *
@@ -26,8 +28,7 @@ class Test_Run_Viewer extends WP_UnitTestCase {
 	public function set_up(): void {
 		parent::set_up();
 
-		global $wpdb;
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		$this->drop_baton_table();
 		Baton_Saved_Values::install();
 
 		// Creating a published workflow post triggers the WP 6.9
@@ -52,8 +53,7 @@ class Test_Run_Viewer extends WP_UnitTestCase {
 	 * Runs after each test: drop the table.
 	 */
 	public function tear_down(): void {
-		global $wpdb;
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		$this->drop_baton_table();
 
 		wp_set_current_user( 0 );
 

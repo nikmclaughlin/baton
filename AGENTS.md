@@ -148,7 +148,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (269 tests)
+npm run test:php               # wp-env phpunit (277 tests)
 ```
 
 ### Node/npm environment (local/CI parity)
@@ -172,7 +172,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 3. **Editor changes** — Always run `npm run build` and commit updated `build/` if the repo ships prebuilt assets.
 4. **Select controls** — Use native `<select>` + `<optgroup>` for grouped ability lists; use `SelectControl` only for flat option lists (e.g. mapping source/target).
 5. **Secrets** — Never commit API keys; workflow definitions may contain site-specific static input.
-6. **Tests** — `composer test` via wp-env (`npm run test:php`); manual smoke: save workflow, run from edit screen, nest `baton/workflow-{id}` in another workflow.
+6. **Tests** — `composer test` via wp-env (`npm run test:php`); manual smoke: save workflow, run from edit screen, nest `baton/workflow-{id}` in another workflow. Test DDL on `baton_saved_values` must go through the shared `Baton_Test_Table_State_Trait::drop_baton_table()` (the PHPUnit harness rewrites `DROP TABLE` to `DROP TEMPORARY TABLE`, which cannot remove the real table wp-env's tests-environment plugin activation creates).
 7. **WP 6.9 registration gate** — Save-time ability registration is a `_doing_it_wrong` no-op outside `wp_abilities_api_init` (see the note above); when writing tests around workflow saves, expect those notices and don't assert the ability exists immediately after save.
 8. **CSS** — `npm run lint:css` uses `wp-scripts lint-style`; stylelint fixes are safe (`lint-style --fix`). Dead selectors: verify against `src/`, `includes/`, `admin-run.js`, *and* `build/index.js` before removing (modifiers can be built dynamically).
 9. **Runner-filled context fields** — utility abilities mark `run_id`/`workflow_id`/`step_id` input properties with `'x-baton' => 'context'`; the runner injects them when the schema declares them, and `Baton_Schema_Paths::is_context_property()` hides them from mappable paths and editor input UIs. Never ask users to set these fields, and never remove them from the schemas.

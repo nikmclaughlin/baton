@@ -12,13 +12,15 @@ declare( strict_types=1 );
  */
 class Test_Saved_Values extends WP_UnitTestCase {
 
+	use Baton_Test_Table_State_Trait;
+
 	/**
 	 * Runs before each test: drop + recreate the table for isolation.
 	 */
 	public function set_up(): void {
 		parent::set_up();
 
-		$this->drop_table();
+		$this->drop_baton_table();
 		Baton_Saved_Values::install();
 	}
 
@@ -26,18 +28,9 @@ class Test_Saved_Values extends WP_UnitTestCase {
 	 * Runs after each test: drop the table.
 	 */
 	public function tear_down(): void {
-		$this->drop_table();
+		$this->drop_baton_table();
 
 		parent::tear_down();
-	}
-
-	/**
-	 * Drop the custom table between tests.
-	 */
-	private function drop_table(): void {
-		global $wpdb;
-
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
 	}
 
 	/**
@@ -463,10 +456,10 @@ class Test_Saved_Values extends WP_UnitTestCase {
 	public function test_table_exists_is_cached_between_checks(): void {
 		$this->assertTrue( Baton_Saved_Values::table_exists() ); // primes the cache.
 
-		// Direct DDL (no cache reset) — the cached truth still stands for
-		// this request; that staleness is why install()/uninstall() reset it.
-		global $wpdb;
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		// Drops without touching the cache — the cached truth still stands
+		// for this request; that staleness is why install()/uninstall()
+		// reset it.
+		$this->drop_baton_table();
 		$this->assertTrue( Baton_Saved_Values::table_exists() );
 
 		Baton_Saved_Values::install(); // resets the cache and recreates the table.

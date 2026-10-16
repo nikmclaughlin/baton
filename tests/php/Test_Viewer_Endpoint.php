@@ -14,6 +14,8 @@ declare( strict_types=1 );
  */
 class Test_Viewer_Endpoint extends WP_UnitTestCase {
 
+	use Baton_Test_Table_State_Trait;
+
 	/**
 	 * Workflow post ID under test.
 	 *
@@ -31,8 +33,7 @@ class Test_Viewer_Endpoint extends WP_UnitTestCase {
 			$this->markTestSkipped( 'Abilities API is not available in this WordPress version.' );
 		}
 
-		global $wpdb;
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		$this->drop_baton_table();
 		Baton_Saved_Values::install();
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
@@ -45,8 +46,7 @@ class Test_Viewer_Endpoint extends WP_UnitTestCase {
 	 * Runs after each test.
 	 */
 	public function tear_down(): void {
-		global $wpdb;
-		$wpdb->query( 'DROP TABLE IF EXISTS ' . Baton_Saved_Values::table_name() ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- test-only DDL.
+		$this->drop_baton_table();
 
 		wp_set_current_user( 0 );
 		$this->set_rest_cookie_auth( null );
