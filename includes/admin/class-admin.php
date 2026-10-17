@@ -30,6 +30,7 @@ final class Baton_Admin {
 		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
 		add_action( 'admin_init', array( self::class, 'maybe_handle_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_assets' ) );
+		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_palette' ) );
 
 		// Saved-value viewer on the edit screen (delete actions on admin_init).
 		Baton_Run_Viewer::register();
@@ -438,6 +439,40 @@ final class Baton_Admin {
 	}
 
 	/**
+	 * Enqueue the Command Palette bridge on every admin screen.
+	 *
+	 * Admins only, always-on: the palette itself is core's and may appear
+	 * anywhere; the script gates at runtime on wp.commands existing (older
+	 * cores and builds without the palette silently do nothing).
+	 */
+	public static function enqueue_palette(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'baton-palette',
+			BATON_URL . 'assets/baton-palette.js',
+			array( 'wp-data', 'wp-api-fetch' ),
+			BATON_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'baton-palette',
+			'BatonPalette',
+			array(
+				'restPath' => '/' . Baton_Rest_Controller::ROUTE_NAMESPACE . '/' . Baton_Rest_Controller::ROUTE_BASE,
+				'editUrl'  => self::get_palette_edit_url(),
+				'strings'  => array(
+					// translators: %s: workflow title.
+					'run' => __( 'Run workflow: %s', 'baton' ),
+				),
+			)
+		);
+	}
+
+	/**
 	 * Enqueue React workflow editor bundle.
 	 */
 	private static function enqueue_editor_assets(): void {
@@ -654,6 +689,25 @@ final class Baton_Admin {
 				'workflow_id' => $post_id,
 			),
 			admin_url( 'tools.php' )
+		);
+	}
+
+	/**
+	 * Edit-screen URL template for the Command Palette bridge.
+	 *
+	 * Derived from get_edit_url() so it can never drift from the real
+	 * edit screen URL. The workflow CPT has no core post.php screen
+	 * (show_ui is false), so palette run commands must open Baton's own
+	 * admin edit screen, where the run panel picks up the
+	 * baton_run=palette flag.
+	 *
+	 * @return string Edit-screen URL with a %d placeholder for the workflow ID.
+	 */
+	public static function get_palette_edit_url(): string {
+		return str_replace(
+			'workflow_id=1',
+			'workflow_id=%d',
+			self::get_edit_url( 1 )
 		);
 	}
 }

@@ -34,6 +34,8 @@ Data filters on the connections between steps control what flows between abiliti
 
 The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/workflows` and `POST /wp-json/baton/v1/workflows/{id}/run`, `manage_options` + cookie + `wp_rest` nonce), so failures surface as real HTTP status codes instead of opaque admin-ajax responses.
 
+**Command Palette.** Published workflows appear in the admin Command Palette (`cmd+K` / `ctrl+K`) as "Run workflow: {title}" wherever the palette is available (core 6.9+ offers it on every admin screen). Picking one opens the workflow's edit screen and runs it with its saved input; the run is recorded as a "Palette run" row in the workflow's saved-values viewer.
+
 **External execution.** Each workflow can be exposed per channel via the editor's **Expose externally** checkboxes — one for the core Abilities REST API, one for WP-CLI. Both are per-workflow opt-in (default off = zero external surface) and both record every externally triggered run as an "External run" log row in the workflow's saved-values viewer.
 
 - **REST** — a workflow with *Expose externally (REST)* enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers). Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).

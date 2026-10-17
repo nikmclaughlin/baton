@@ -28,7 +28,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Baton-owned channels that call the runner directly (B3: WP-CLI's
  * `wp baton run`) log through the public log_*_run() methods instead — no
- * dispatch observation needed because the calling code is Baton's own.
+ * dispatch observation needed because the calling code is Baton's own. The
+ * admin-scope Command Palette trigger (trigger "palette" on the baton/v1
+ * run endpoint) rides the same explicit-log path with its own label.
  */
 final class Baton_External_Execution {
 
@@ -142,7 +144,7 @@ final class Baton_External_Execution {
 	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
 	 */
 	public static function log_rest_run( int $post_id, $input, array $report ): void {
-		self::log_external_run( Baton_Workflow_CPT::SURFACE_REST, $post_id, $input, $report );
+		self::log_trigger_run( Baton_Workflow_CPT::SURFACE_REST, __( 'External run', 'baton' ), $post_id, $input, $report );
 	}
 
 	/**
@@ -159,18 +161,38 @@ final class Baton_External_Execution {
 	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
 	 */
 	public static function log_cli_run( int $post_id, $input, array $report ): void {
-		self::log_external_run( Baton_Workflow_CPT::SURFACE_CLI, $post_id, $input, $report );
+		self::log_trigger_run( Baton_Workflow_CPT::SURFACE_CLI, __( 'External run', 'baton' ), $post_id, $input, $report );
 	}
 
 	/**
-	 * Shared external-run log-row writer (REST + CLI channels today).
+	 * Log a Command Palette run as a saved-values log row.
 	 *
-	 * @param string               $trigger Channel/surface slug ('rest', 'cli').
+	 * The palette is the admin user acting from the admin UI, not an
+	 * external channel — no surface-map involvement. admin-run.js tags
+	 * palette-triggered runs with `trigger: "palette"` on the baton/v1 run
+	 * endpoint and Baton_Rest_Controller logs them here, using the same row
+	 * shape as the channel logs but a distinct label so the viewer shows
+	 * the origin ("Palette run"). Write failures are silent, same as the
+	 * channel paths.
+	 *
+	 * @param int                  $post_id Workflow post ID.
+	 * @param mixed                $input   Effective run input (the saved initial input).
+	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
+	 */
+	public static function log_palette_run( int $post_id, $input, array $report ): void {
+		self::log_trigger_run( 'palette', __( 'Palette run', 'baton' ), $post_id, $input, $report );
+	}
+
+	/**
+	 * Shared trigger-run log-row writer (REST/CLI channels + palette today).
+	 *
+	 * @param string               $trigger Channel/trigger slug ('rest', 'cli', 'palette').
+	 * @param string               $label   Row label ("External run", "Palette run").
 	 * @param int                  $post_id Workflow post ID.
 	 * @param mixed                $input   Caller input.
 	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
 	 */
-	private static function log_external_run( string $trigger, int $post_id, $input, array $report ): void {
+	private static function log_trigger_run( string $trigger, string $label, int $post_id, $input, array $report ): void {
 		$value = array(
 			'trigger' => $trigger,
 			'success' => ! empty( $report['success'] ),
@@ -185,7 +207,7 @@ final class Baton_External_Execution {
 			Baton_Saved_Values::KIND_LOG,
 			$post_id,
 			(string) ( $report['run_id'] ?? '' ),
-			__( 'External run', 'baton' ),
+			$label,
 			$value
 		);
 	}
