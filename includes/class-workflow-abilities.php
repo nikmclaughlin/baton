@@ -260,6 +260,43 @@ final class Baton_Workflow_Abilities {
 	}
 
 	/**
+	 * Execute a saved workflow for a Baton-calling channel.
+	 *
+	 * Shared pre/post run semantics for every channel that funnels into the
+	 * runner with a caller input override: sanitize the input into
+	 * initial_input, run, and resolve the success payload (the raw
+	 * last-step output). Callers handle channel-specific concerns around
+	 * this (e.g. external-run log rows, WP_Error wrapping).
+	 *
+	 * @param int   $post_id Workflow post ID.
+	 * @param mixed $input   Optional workflow input.
+	 * @return array{report: array<string, mixed>, output: mixed} Runner report plus last-step output (null when nothing ran).
+	 */
+	public static function run_workflow( int $post_id, $input = null ): array {
+		$definition = Baton_Workflow_CPT::get_definition( $post_id );
+
+		if ( is_array( $input ) && ! empty( $input ) ) {
+			$definition['initial_input'] = Baton_Input_Sanitizer::sanitize_input_array( $input );
+		}
+
+		$report = Baton_Workflow_Runner::run( $definition, $post_id );
+
+		$output = null;
+		if ( ! empty( $report['success'] ) ) {
+			$steps = $report['steps'] ?? array();
+			if ( ! empty( $steps ) ) {
+				$last   = end( $steps );
+				$output = $last['output'] ?? null;
+			}
+		}
+
+		return array(
+			'report' => $report,
+			'output' => $output,
+		);
+	}
+
+	/**
 	 * Execute callback for a registered workflow ability.
 	 *
 	 * When the execution arrived through core's Abilities REST run route
@@ -271,13 +308,8 @@ final class Baton_Workflow_Abilities {
 	 * @return mixed|WP_Error
 	 */
 	public static function execute_workflow_ability( int $post_id, $input = null ) {
-		$definition = Baton_Workflow_CPT::get_definition( $post_id );
-
-		if ( is_array( $input ) && ! empty( $input ) ) {
-			$definition['initial_input'] = Baton_Input_Sanitizer::sanitize_input_array( $input );
-		}
-
-		$report = Baton_Workflow_Runner::run( $definition, $post_id );
+		$result = self::run_workflow( $post_id, $input );
+		$report = $result['report'];
 
 		if ( Baton_External_Execution::is_rest_triggered( self::get_ability_name( $post_id ) ) ) {
 			Baton_External_Execution::log_rest_run( $post_id, $input, $report );
@@ -290,12 +322,6 @@ final class Baton_Workflow_Abilities {
 			);
 		}
 
-		$steps = $report['steps'] ?? array();
-		if ( empty( $steps ) ) {
-			return null;
-		}
-
-		$last = end( $steps );
-		return $last['output'] ?? null;
+		return $result['output'];
 	}
 }

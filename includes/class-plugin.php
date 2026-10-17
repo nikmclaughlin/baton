@@ -69,6 +69,7 @@ final class Baton_Plugin {
 		Baton_Utility_Abilities::register();
 		Baton_Admin::register();
 		Baton_Rest_Controller::register();
+		Baton_Mcp_Integration::register();
 		Baton_External_Execution::register();
 		add_action( 'cli_init', array( 'Baton_CLI', 'register' ) );
 	}

@@ -36,7 +36,7 @@ The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/work
 
 **Command Palette.** Published workflows appear in the admin Command Palette (`cmd+K` / `ctrl+K`) as "Run workflow: {title}" wherever the palette is available (core 6.9+ offers it on every admin screen). Picking one opens the workflow's edit screen and runs it with its saved input; the run is recorded as a "Palette run" row in the workflow's saved-values viewer.
 
-**External execution.** Each workflow can be exposed per channel via the editor's **Expose externally** checkboxes — one for the core Abilities REST API, one for WP-CLI. Both are per-workflow opt-in (default off = zero external surface) and both record every externally triggered run as an "External run" log row in the workflow's saved-values viewer.
+**External execution.** Each workflow can be exposed per channel via the editor's **Expose externally** checkboxes — one for the core Abilities REST API, one for WP-CLI, one for MCP. All are per-workflow opt-in (default off = zero external surface) and record every externally triggered run as a log row in the workflow's saved-values viewer.
 
 - **REST** — a workflow with *Expose externally (REST)* enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers). Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).
 - **WP-CLI** — a workflow with *Expose externally (WP-CLI)* enabled is listed and runnable with `wp baton` (this requires [WP-CLI](https://wp-cli.org/) on the server). CLI runs authenticate with WP-CLI's `--user` — they do **not** inherit your admin browser session, so pass `--user=<admin-login>` for workflows with privileged abilities (without it the request is unauthenticated and each ability's permission check fails):
@@ -49,6 +49,8 @@ The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/work
 	```
 
 	`wp baton info` and `wp baton run` gate strictly: a workflow without the CLI surface is not listed and not runnable — the commands stop with a generic not-found error before touching it (mirroring REST's 404 invisibility). The default format prints a human-readable step-by-step report (inputs, warnings, outputs, errors, run ID); `--format=json` emits the raw runner report for scripting. A failed run still prints its full report but exits non-zero (`WP_CLI::error`). Like the REST channel, every CLI run is logged in the saved-values viewer.
+
+- **MCP** — a workflow with *Expose externally (MCP)* enabled is registered as a dedicated MCP tool on the [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) default server (requires the MCP Adapter plugin; without it the checkbox is a silent no-op). The adapter owns the MCP endpoint (`/wp-json/mcp/mcp-adapter-default-server`), transport, session handshake, and tool invocation; Baton only nominates the tools. Each exposed workflow becomes `baton_run_workflow_{post_id}` (MCP tool names must be `^[a-zA-Z0-9_-]{1,64}$`, so the backing ability name `baton/workflow-{id}` is cross-referenced in the tool description instead), takes the workflow's input object as its arguments, returns the last step's output, requires admin permissions (`manage_options`), is gated at the adapter's own transport-permission layer (logged-in users by default, per the adapter's configuration), and logs every run as an "MCP run" row in the saved-values viewer. Unexposed workflows never appear in the adapter's tool list.
 
 ### Baton's memory: save output, keep state, load, log
 
@@ -71,7 +73,7 @@ Chain them with the usual data filters: map a previous step's output into `value
 ## Roadmap / Known Gaps 
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- **Per-channel external surfaces** — REST and WP-CLI are wired (`_baton_external_surfaces` = `['rest']`, `['cli']`, or both); the MCP surface (and its trigger/permission surface) remains a future decision.
+- **Per-channel external surfaces** — **Done:** REST, WP-CLI, and MCP are wired (`_baton_external_surfaces` = `['rest']`, `['cli']`, `['mcp']`, or combined). The MCP channel rides the [WordPress MCP Adapter](https://github.com/WordPress/mcp-adapter) default server via its documented `mcp_adapter_default_server_config` extension point (tool registration and run tagging only — the adapter owns transport, handshake, and invocation) and is a silent no-op while the adapter plugin is inactive.
 - **Command Palette integration** for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).

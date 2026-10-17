@@ -23,7 +23,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall; static-cached `table_exists()`); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
 | Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
-| External execution (B2/B3) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']`, `['cli']`, or both; `mcp` later), toggled by the editor's per-surface "Expose externally" checkboxes; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`; `Baton_External_Execution` appends a `log` row ("External run", value `{trigger, input, success, error?}`) for REST runs arriving through core's `wp-abilities/v1/abilities/{name}/run` routes AND for CLI runs (`Baton_CLI::log_cli_run()` path — `wp baton run` calls the runner directly); WP-CLI surface is strictly gated (not listed/not runnable without the `cli` slug) |
+| External execution (B2/B3/B4) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']`, `['cli']`, `['mcp']`, or combined), toggled by the editor's per-surface "Expose externally" checkboxes; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`; `Baton_External_Execution` appends a `log` row ("External run", value `{trigger, input, success, error?}`) for REST runs arriving through core's `wp-abilities/v1/abilities/{name}/run` routes AND for CLI runs (`Baton_CLI::log_cli_run()` path — `wp baton run` calls the runner directly) AND MCP tool-call runs ("MCP run", `Baton_Mcp_Integration::run_workflow_tool_call()` path — the Baton-registered tool handler calls the runner directly); WP-CLI surface is strictly gated (not listed/not runnable without the `cli` slug) and the MCP surface is gated on the canonical WordPress MCP Adapter plugin being active |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
 | Command Palette | `assets/baton-palette.js` — always-on admin bridge (enqueued on every admin screen for admins; deps `wp-data` + `wp-api-fetch`; NOT part of the React build), runtime-gated on `window.wp.commands` (silent no-op where the palette is absent). Fetches `GET /baton/v1/workflows` once and registers `baton/run-workflow-{id}` commands ("Run workflow: {title}", category `action`, no context property); the callback closes the palette and navigates to Baton's own admin edit screen (`admin_url('tools.php')` with `page=baton&action=edit&workflow_id={id}&baton_run=palette`, localized from `Baton_Admin::get_palette_edit_url()` — the workflow CPT is `show_ui:false` and has **no core `post.php` screen**), where `admin-run.js` auto-runs the saved definition with `trigger:"palette"` |
 
@@ -63,6 +63,18 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 - `wp baton run <id> [--input=<json>] [--input-file=<path>] [--format=table|json]` — strict gating (`Baton_CLI::is_cli_runnable()`: exists + published + `cli` surface; anything else gets one generic "not exposed" error that never reveals which check failed — mirrors REST's 404 invisibility). Runs `Baton_Workflow_Runner::run()` directly, prints the FULL runner report; a present `--input`/`--input-file` (JSON object; `{}` clears) replaces the saved `initial_input` like the admin run endpoint; `--format=json` prints the raw report (BEFORE the exit decision) so scripts can capture it; failed run ⇒ `WP_CLI::error` (exit 1). Every CLI run logs an "External run" row (value `{trigger:'cli', …}`) through `Baton_External_Execution::log_cli_run()`.
 
 WP-CLI is absent from the PHPUnit harness, so tests drive the command methods directly against a shim: `tests/php/wp-cli-stub.php` (constant-checked guard — NOT `class_exists`, which self-triggers because PHP pre-binds the shim's own top-level class before its statements run; captured I/O; `WP_CLI\ExitException` on error; simplified `WP_CLI\Utils\format_items`). See `tests/php/Test_CLI_Execution.php`. For static analysis, `phpstan-stubs/wp-cli-stubs.php` is added to phpstan's `bootstrapFiles` (WP-CLI's class/functions; `stubFiles` alone does not register symbols).
+
+### MCP channel (B4) — tools through the WordPress MCP Adapter
+
+`Baton_Mcp_Integration` (`includes/class-mcp-integration.php`) exposes each published workflow's "mcp" surface as a dedicated MCP tool **through the canonical WordPress MCP Adapter plugin** (WordPress/mcp-adapter on GitHub; plugin slug `mcp-adapter`). Design rules (non-negotiable for this slice):
+
+- **Baton never owns MCP infra.** No `baton/v1/mcp` endpoint, no JSON-RPC handling, no transport/session/handshake code — the adapter owns all of that, including tool invocation and per-tool permission plumbing. Baton is a *client* of the adapter's documented extension points only.
+- **Runtime gate.** `Baton_Mcp_Integration::is_adapter_active()` = `class_exists( 'WP\MCP\Core\McpAdapter' )` (the adapter loads its classes at plugin-file execution time, so a `plugins_loaded` check is reliable), overridable with the `baton_mcp_adapter_active` filter (site opt-out; also the test seam). Adapter absent ⇒ `register()` is a silent no-op — no hooks, no notices. Deliberately unlike the abilities-first convention: this is adapter-specific integration by design.
+- **Tool registration is request-scoped through the adapter's default server.** Baton hooks `mcp_adapter_default_server_config` and appends one `McpTool` (built with the adapter's own `McpTool::fromArray()` factory) per published `mcp`-surfaced workflow to `$config['tools']`; the adapter's component registry accepts ability names or prebuilt `McpTool` instances, and re-builds the default server every request that initializes it, so workflow un-publish/surface changes de-register tools with no Baton-side state.
+- **Tool contract.** Name: `baton_run_workflow_{post_id}` — MCP restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` (no dots/slashes), so the *ability* name (`baton/workflow-{id}`, which contains a slash) cannot be the tool name; instead it is cross-referenced in the tool description (with the workflow title/excerpt summary). The composed name is plain ASCII prefix + integer ID (≤ 38 characters even for `PHP_INT_MAX`) so no runtime sanitization is needed. The tool carries the workflow ability's input schema (object, `additionalProperties: true` + the empty `properties` object the adapter projects), `manage_options` as its tool permission callback (mirroring the ability permission callback; the adapter separately applies its own transport-level permission), and non-mutating annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint` all false).
+- **Run semantics.** The tool handler (`Baton_Mcp_Integration::run_workflow_tool_call()`) is Baton's own code — invoked by the adapter — so the MCP channel logs through the *explicit* path like the CLI channel: every invocation appends a saved-values log row via `Baton_External_Execution::log_mcp_run()` (trigger `mcp`, label **"MCP run"**). It reuses `Baton_Workflow_Abilities::run_workflow()` (the shared input-override → runner → last-step-output helper extracted from the ability execute callback) so the tool returns the same contract as the core REST run route: raw last-step output on success, `WP_Error( 'baton_workflow_failed', … )` on failure (the adapter turns WP_Error into an `isError` tool result). The handler re-checks `is_workflow_exposed()` defensively and answers `WP_Error( 'baton_workflow_not_exposed', … )` for anything unexposed.
+- **No meta-tool double exposure.** The workflow ability's `meta.mcp.public` stays unset: the workflow is not fed into the adapter's `discover-abilities`/`execute-ability` meta-tools; the dedicated tool *is* the MCP surface. This maps exactly one opt-in surface to one adapter mechanism.
+- **Testing/analysis.** The adapter cannot easily be installed into the wp-env test stack, so tests use a shim: `tests/mcp-adapter-stub.php` (bail-guard on `WP_MCP_VERSION`, the constant the canonical adapter defines — the same constant-not-`class_exists` pattern as `tests/php/wp-cli-stub.php`; records `fromArray` configs; mirrors `execute()`/`check_permission()` semantics). It lives **outside `tests/php/`** because PHPUnit's suite directory (suffix `".php"`) executes every file there during discovery and PHP pre-binds unconditional namespaced class declarations past an early `return` — under `tests/php/` the shim would flip Baton's class-existence gate (and attach the config filter) before any test runs; in `tests/` it is only loaded by `Test_Mcp_Integration::ensure_adapter_stub()` via `require_once`. See `tests/php/Test_Mcp_Integration.php` — the adapter-absent no-op test must stay the file's first declared test (the shim, once loaded, classes persist in the process). For static analysis, `phpstan-stubs/mcp-adapter-stubs.php` is added to phpstan's `bootstrapFiles` (only `McpTool::fromArray()` and the `WP\MCP\Core\McpAdapter` class name; signatures mirror MCP Adapter 0.7.x).
 
 ### WP 7.1 delta check on the abilities REST surface (no Baton change needed)
 
@@ -141,6 +153,7 @@ includes/
   class-ability-catalog.php
   class-rest-controller.php  # POST save, POST run, GET viewer, GET list (palette)
   class-cli.php  # wp baton CLI commands (list/info/run)
+  class-mcp-integration.php  # MCP surface: tools through the WordPress MCP Adapter
   admin/
     class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
     class-run-viewer.php  # Saved values & logs viewer + delete actions
@@ -148,6 +161,7 @@ includes/
     class-workflow-list-table.php
 phpstan-stubs/
   wp-cli-stubs.php        # PHPStan bootstrap stubs for the WP-CLI surface
+  mcp-adapter-stubs.php   # PHPStan bootstrap stubs for the MCP Adapter surface
 src/
   index.js
   editor/Shell.js         # Editor shell: saving, modals, view toggle, exposure surfaces
@@ -164,7 +178,9 @@ assets/
   images/baton-banner.png
 tests/
   bootstrap.php           # wp-env phpunit bootstrap
+  mcp-adapter-stub.php    # MCP Adapter test shim (adapter classes not installable in wp-env; outside tests/php — see AGENTS)
   php/                    # Test_* classes (incl. Test_Saved_Values, Test_Run_Viewer)
+  php/wp-cli-stub.php     # WP-CLI test shim
   php/fixtures/           # Registered test abilities for integration tests
 ```
 
@@ -212,7 +228,7 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 ## Known gaps / roadmap
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- **CLI & MCP external surfaces** — **Done (B2/B3):** per-workflow opt-in REST + WP-CLI exposure (`_baton_external_surfaces` = `['rest']` and/or `['cli']`). The MCP surface slug (and its trigger/permission surfaces) remain a future decision.
+- **CLI & MCP external surfaces** — **Done (B2/B3/B4):** per-workflow opt-in REST + WP-CLI + MCP exposure (`_baton_external_surfaces` = `['rest']`, `['cli']`, and/or `['mcp']`). MCP is implemented through the canonical WordPress MCP Adapter plugin (default-server tool nomination via its documented config filter, `baton_run_workflow_{id}` tool names) and stays a silent no-op while the adapter is inactive.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.

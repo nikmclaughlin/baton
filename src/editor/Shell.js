@@ -21,9 +21,9 @@ import NodeView from './NodeView';
 import { defaultStep, definitionFromSteps } from './utils';
 
 // Per-surface external-exposure options rendered as checkboxes. REST is
-// B2's core abilities run route; B3 adds the WP-CLI channel (`wp baton`).
-// MCP joins the map later — storage is already multi-surface, so adding
-// another entry here is the only UI change required.
+// B2's core abilities run route; B3 adds the WP-CLI channel (`wp baton`);
+// B4 adds the MCP channel via the WordPress MCP Adapter (the adapter owns
+// the MCP endpoint, transport, and handshake — Baton only lists the tools).
 const SURFACE_CONTROLS = [
 	{
 		slug: 'rest',
@@ -40,6 +40,15 @@ const SURFACE_CONTROLS = [
 		label: __( 'Expose externally (WP-CLI)', 'baton' ),
 		help: __(
 			'Allow running this workflow with the wp baton WP-CLI commands. CLI runs execute in admin context and every run is logged below.',
+			'baton'
+		),
+	},
+	{
+		slug: 'mcp',
+		className: 'baton-editor__expose-mcp',
+		label: __( 'Expose externally (MCP)', 'baton' ),
+		help: __(
+			"Expose this workflow as an MCP tool on the WordPress MCP Adapter default server. MCP clients call the tool from the adapter's MCP endpoint; the tool requires admin permissions, runs execute the workflow, and every run is logged below.",
 			'baton'
 		),
 	},
@@ -99,8 +108,8 @@ export default function EditorShell( {
 			? initialDefinition.initial_input
 			: {}
 	);
-	// Per-workflow opt-in external-execution surface map (B2/B3): slugs of
-	// the surfaces this workflow is exposed on (rest, cli; MCP later).
+	// Per-workflow opt-in external-execution surface map (B2/B3/B4): slugs
+	// of the surfaces this workflow is exposed on (rest, cli, mcp).
 	const [ surfaces, setSurfaces ] = useState( () =>
 		Array.isArray( initialSurfaces )
 			? initialSurfaces.filter( ( slug ) => typeof slug === 'string' )
