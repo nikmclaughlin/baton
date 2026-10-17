@@ -428,7 +428,8 @@
 }
 
 .baton-editor__expose-rest,
-.baton-editor__expose-cli {
+.baton-editor__expose-cli,
+.baton-editor__expose-mcp {
 	margin-right: 24px;
 }
 

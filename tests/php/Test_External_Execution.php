@@ -82,14 +82,21 @@ class Test_External_Execution extends WP_UnitTestCase {
 
 	public function test_sanitize_surfaces_keeps_only_known_slugs(): void {
 		$this->assertSame(
-			array( 'rest', 'cli' ),
+			array( 'rest', 'cli', 'mcp' ),
 			Baton_Workflow_CPT::sanitize_surfaces( array( 'rest', ' cli ', 'mcp', 12, 'rest', 'cli' ) )
+		);
+
+		// Unknown slugs are still dropped.
+		$this->assertSame(
+			array( 'rest' ),
+			Baton_Workflow_CPT::sanitize_surfaces( array( 'rest', 'unknown-slug' ) )
 		);
 	}
 
 	public function test_sanitize_surfaces_accepts_json_string_payload(): void {
 		$this->assertSame( array( 'rest' ), Baton_Workflow_CPT::sanitize_surfaces( '["rest"]' ) );
 		$this->assertSame( array( 'cli' ), Baton_Workflow_CPT::sanitize_surfaces( '["cli"]' ) );
+		$this->assertSame( array( 'mcp' ), Baton_Workflow_CPT::sanitize_surfaces( '["mcp"]' ) );
 		$this->assertSame( array( 'rest', 'cli' ), Baton_Workflow_CPT::sanitize_surfaces( '["rest","cli"]' ) );
 	}
 

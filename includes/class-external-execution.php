@@ -27,10 +27,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  * other and sequential requests clean up after themselves.
  *
  * Baton-owned channels that call the runner directly (B3: WP-CLI's
- * `wp baton run`) log through the public log_*_run() methods instead — no
- * dispatch observation needed because the calling code is Baton's own. The
- * admin-scope Command Palette trigger (trigger "palette" on the baton/v1
- * run endpoint) rides the same explicit-log path with its own label.
+ * `wp baton run`, B4: MCP tool calls whose tool handler Baton itself
+ * registered with the WordPress MCP Adapter) log through the public
+ * log_*_run() methods instead — no dispatch observation needed because the
+ * executing code is Baton's own. The admin-scope Command Palette trigger
+ * (trigger "palette" on the baton/v1 run endpoint) rides the same
+ * explicit-log path with its own label.
  */
 final class Baton_External_Execution {
 
@@ -165,6 +167,25 @@ final class Baton_External_Execution {
 	}
 
 	/**
+	 * Log an MCP tool-call run as a saved-values log row.
+	 *
+	 * B4: runs arrive through the WordPress MCP Adapter as tools/call
+	 * invocations of the per-workflow tools Baton registers on the
+	 * adapter's default server. Baton's own tool handler executes the
+	 * workflow, so this channel logs through the explicit path (same row
+	 * shape as REST/CLI external runs; the adapter — not Baton — owns the
+	 * JSON-RPC surface around it). Write failures are silent, same as the
+	 * other channel paths: the run result still reaches the MCP caller.
+	 *
+	 * @param int                  $post_id Workflow post ID.
+	 * @param mixed                $input   Caller input (tool call arguments).
+	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
+	 */
+	public static function log_mcp_run( int $post_id, $input, array $report ): void {
+		self::log_trigger_run( Baton_Workflow_CPT::SURFACE_MCP, __( 'MCP run', 'baton' ), $post_id, $input, $report );
+	}
+
+	/**
 	 * Log a Command Palette run as a saved-values log row.
 	 *
 	 * The palette is the admin user acting from the admin UI, not an
@@ -184,10 +205,10 @@ final class Baton_External_Execution {
 	}
 
 	/**
-	 * Shared trigger-run log-row writer (REST/CLI channels + palette today).
+	 * Shared trigger-run log-row writer (REST/CLI/MCP channels + palette today).
 	 *
-	 * @param string               $trigger Channel/trigger slug ('rest', 'cli', 'palette').
-	 * @param string               $label   Row label ("External run", "Palette run").
+	 * @param string               $trigger Channel/trigger slug ('rest', 'cli', 'mcp', 'palette').
+	 * @param string               $label   Row label ("External run", "Palette run", "MCP run").
 	 * @param int                  $post_id Workflow post ID.
 	 * @param mixed                $input   Caller input.
 	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).

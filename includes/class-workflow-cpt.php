@@ -25,8 +25,7 @@ final class Baton_Workflow_CPT {
 	public const META_SURFACES = '_baton_external_surfaces';
 
 	/**
-	 * External run surface the editor can enable (B2: REST only; CLI/MCP
-	 * slugs may join this map later).
+	 * External run surface: core Abilities REST API (`wp-abilities/v1`).
 	 */
 	public const SURFACE_REST = 'rest';
 
@@ -36,9 +35,15 @@ final class Baton_Workflow_CPT {
 	public const SURFACE_CLI = 'cli';
 
 	/**
+	 * External run surface: WordPress MCP Adapter exposure (see
+	 * Baton_Mcp_Integration — requires the canonical MCP Adapter plugin).
+	 */
+	public const SURFACE_MCP = 'mcp';
+
+	/**
 	 * Known surface slugs for the exposure map; unknown values are dropped.
 	 */
-	public const AVAILABLE_SURFACES = array( self::SURFACE_REST, self::SURFACE_CLI );
+	public const AVAILABLE_SURFACES = array( self::SURFACE_REST, self::SURFACE_CLI, self::SURFACE_MCP );
 
 	/**
 	 * Register post type.
