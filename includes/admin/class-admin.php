@@ -463,7 +463,7 @@ final class Baton_Admin {
 			'BatonPalette',
 			array(
 				'restPath' => '/' . Baton_Rest_Controller::ROUTE_NAMESPACE . '/' . Baton_Rest_Controller::ROUTE_BASE,
-				'postUrl'  => admin_url( 'post.php' ),
+				'editUrl'  => self::get_palette_edit_url(),
 				'strings'  => array(
 					// translators: %s: workflow title.
 					'run' => __( 'Run workflow: %s', 'baton' ),
@@ -689,6 +689,25 @@ final class Baton_Admin {
 				'workflow_id' => $post_id,
 			),
 			admin_url( 'tools.php' )
+		);
+	}
+
+	/**
+	 * Edit-screen URL template for the Command Palette bridge.
+	 *
+	 * Derived from get_edit_url() so it can never drift from the real
+	 * edit screen URL. The workflow CPT has no core post.php screen
+	 * (show_ui is false), so palette run commands must open Baton's own
+	 * admin edit screen, where the run panel picks up the
+	 * baton_run=palette flag.
+	 *
+	 * @return string Edit-screen URL with a %d placeholder for the workflow ID.
+	 */
+	public static function get_palette_edit_url(): string {
+		return str_replace(
+			'workflow_id=1',
+			'workflow_id=%d',
+			self::get_edit_url( 1 )
 		);
 	}
 }

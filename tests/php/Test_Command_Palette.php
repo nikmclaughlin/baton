@@ -154,6 +154,32 @@ class Test_Command_Palette extends WP_UnitTestCase {
 	}
 
 	// ──────────────────────────────────────────────────────────────
+	// Palette navigation target — Baton's admin edit screen
+	// ──────────────────────────────────────────────────────────────
+
+	/**
+	 * The palette bridge navigates to Baton's edit screen, never to core
+	 * post.php (the workflow CPT is show_ui:false and has no core editor
+	 * screen). The localized edit-URL template must resolve to exactly
+	 * what get_edit_url() builds for every workflow ID.
+	 */
+	public function test_palette_edit_url_template_matches_get_edit_url(): void {
+		$template = Baton_Admin::get_palette_edit_url();
+
+		$this->assertStringContainsString( 'page=' . Baton_Admin::PAGE_SLUG, $template );
+		$this->assertStringContainsString( 'action=edit', $template );
+		$this->assertStringContainsString( 'workflow_id=%d', $template );
+
+		foreach ( array( 1, 42, 224, 99999 ) as $id ) {
+			$this->assertSame(
+				Baton_Admin::get_edit_url( $id ),
+				str_replace( '%d', (string) $id, $template ),
+				"Palette edit-URL template must resolve to the edit screen URL for workflow {$id}."
+			);
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────────
 	// trigger=palette on the run endpoint — the logged run origin
 	// ──────────────────────────────────────────────────────────────
 

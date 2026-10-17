@@ -14,7 +14,7 @@
 
 	const cfg = window.BatonPalette || {};
 	const REST_PATH = cfg.restPath || '';
-	const POST_URL = cfg.postUrl || '';
+	const EDIT_URL = cfg.editUrl || '';
 	const RUN_LABEL = ( cfg.strings && cfg.strings.run ) || 'Run workflow: %s';
 
 	function registerFor( items ) {
@@ -42,13 +42,14 @@
 						options.close();
 					}
 
-					// The edit screen's run panel picks up ?baton_run=palette
-					// and auto-triggers the run (trigger "palette").
+					// The workflow CPT has no core post.php screen, so
+					// commands open Baton's own edit screen
+					// (tools.php?page=baton&action=edit&workflow_id={id});
+					// its run panel picks up ?baton_run=palette and
+					// auto-triggers the run (trigger "palette").
 					window.location.href =
-						POST_URL +
-						'?post=' +
-						id +
-						'&action=edit&baton_run=palette';
+						EDIT_URL.replace( '%d', String( id ) ) +
+						'&baton_run=palette';
 				},
 			} );
 		} );
