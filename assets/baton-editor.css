@@ -419,6 +419,7 @@
 	display: flex;
 	justify-content: flex-end;
 	align-items: flex-start;
+	flex-wrap: wrap;
 	margin-bottom: 12px;
 }
 
@@ -426,7 +427,8 @@
 	max-width: 260px;
 }
 
-.baton-editor__expose-rest {
+.baton-editor__expose-rest,
+.baton-editor__expose-cli {
 	margin-right: 24px;
 }
 

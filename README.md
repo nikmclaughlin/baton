@@ -34,7 +34,19 @@ Data filters on the connections between steps control what flows between abiliti
 
 The admin's save and run actions ride the REST API (`POST /wp-json/baton/v1/workflows` and `POST /wp-json/baton/v1/workflows/{id}/run`, `manage_options` + cookie + `wp_rest` nonce), so failures surface as real HTTP status codes instead of opaque admin-ajax responses.
 
-**External execution (REST).** A workflow with the "Expose externally (REST)" checkbox enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers) and every external run is recorded as a log row in the workflow's saved-values viewer. Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).
+**External execution.** Each workflow can be exposed per channel via the editor's **Expose externally** checkboxes — one for the core Abilities REST API, one for WP-CLI. Both are per-workflow opt-in (default off = zero external surface) and both record every externally triggered run as an "External run" log row in the workflow's saved-values viewer.
+
+- **REST** — a workflow with *Expose externally (REST)* enabled is served and executed through the core Abilities REST API (`POST /wp-json/wp-abilities/v1/abilities/baton/workflow-{post_id}/run`). Execution still requires admin authentication (application passwords are supported for machine callers). Note that while exposed, the workflow's name and input/output schemas are visible via the abilities list routes to all logged-in users (core gates those routes on `read`); unexposed workflows are invisible and unrunnable (404).
+- **WP-CLI** — a workflow with *Expose externally (WP-CLI)* enabled is listed and runnable with `wp baton` (this requires [WP-CLI](https://wp-cli.org/) on the server). CLI runs authenticate with WP-CLI's `--user` — they do **not** inherit your admin browser session, so pass `--user=<admin-login>` for workflows with privileged abilities (without it the request is unauthenticated and each ability's permission check fails):
+
+	```bash
+	wp baton list --format=table|json|csv   # workflows exposed for CLI
+	wp baton info <id>                      # definition, surfaces, newest run
+	wp baton run <id> --input='{"cursor":"a1"}' --format=json
+	wp baton run <id> --input-file=/tmp/input.json
+	```
+
+	`wp baton info` and `wp baton run` gate strictly: a workflow without the CLI surface is not listed and not runnable — the commands stop with a generic not-found error before touching it (mirroring REST's 404 invisibility). The default format prints a human-readable step-by-step report (inputs, warnings, outputs, errors, run ID); `--format=json` emits the raw runner report for scripting. A failed run still prints its full report but exits non-zero (`WP_CLI::error`). Like the REST channel, every CLI run is logged in the saved-values viewer.
 
 ### Baton's memory: save output, keep state, load, log
 
@@ -57,7 +69,8 @@ Chain them with the usual data filters: map a previous step's output into `value
 ## Roadmap / Known Gaps 
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- CLI & Command Palette integrations for "external" workflow execution.
+- **Per-channel external surfaces** — REST and WP-CLI are wired (`_baton_external_surfaces` = `['rest']`, `['cli']`, or both); the MCP surface (and its trigger/permission surface) remains a future decision.
+- **Command Palette integration** for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.

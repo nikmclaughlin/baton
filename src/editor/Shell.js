@@ -20,6 +20,31 @@ import WorkflowEditor from './App';
 import NodeView from './NodeView';
 import { defaultStep, definitionFromSteps } from './utils';
 
+// Per-surface external-exposure options rendered as checkboxes. REST is
+// B2's core abilities run route; B3 adds the WP-CLI channel (`wp baton`).
+// MCP joins the map later — storage is already multi-surface, so adding
+// another entry here is the only UI change required.
+const SURFACE_CONTROLS = [
+	{
+		slug: 'rest',
+		className: 'baton-editor__expose-rest',
+		label: __( 'Expose externally (REST)', 'baton' ),
+		help: __(
+			'Serve this workflow over the core Abilities REST API for external tooling. Running requires admin authentication (application passwords supported) and runs are logged below; while exposed, the workflow name and its schemas are visible to all logged-in users.',
+			'baton'
+		),
+	},
+	{
+		slug: 'cli',
+		className: 'baton-editor__expose-cli',
+		label: __( 'Expose externally (WP-CLI)', 'baton' ),
+		help: __(
+			'Allow running this workflow with the wp baton WP-CLI commands. CLI runs execute in admin context and every run is logged below.',
+			'baton'
+		),
+	},
+];
+
 function readInputValue( id ) {
 	const el = document.getElementById( id );
 	return el && 'value' in el ? el.value : '';
@@ -74,9 +99,8 @@ export default function EditorShell( {
 			? initialDefinition.initial_input
 			: {}
 	);
-	// External-execution surface map (B2): slugs of the surfaces this
-	// workflow is opt-in exposed on. Today only 'rest' (core's abilities
-	// run route); CLI/MCP join the map later.
+	// Per-workflow opt-in external-execution surface map (B2/B3): slugs of
+	// the surfaces this workflow is exposed on (rest, cli; MCP later).
 	const [ surfaces, setSurfaces ] = useState( () =>
 		Array.isArray( initialSurfaces )
 			? initialSurfaces.filter( ( slug ) => typeof slug === 'string' )
@@ -142,13 +166,13 @@ export default function EditorShell( {
 		syncSurfacesField();
 	}, [ syncSurfacesField ] );
 
-	const toggleRestSurface = useCallback( ( checked ) => {
+	const toggleSurface = useCallback( ( slug, checked ) => {
 		setSurfaces( ( prev ) => {
 			const base = Array.isArray( prev ) ? prev : [];
-			if ( checked && ! base.includes( 'rest' ) ) {
-				return [ ...base, 'rest' ];
+			if ( checked && ! base.includes( slug ) ) {
+				return [ ...base, slug ];
 			}
-			return base.filter( ( slug ) => slug !== 'rest' );
+			return base.filter( ( value ) => value !== slug );
 		} );
 	}, [] );
 
@@ -353,16 +377,18 @@ export default function EditorShell( {
 	return (
 		<div className="baton-editor baton-editor--shell">
 			<div className="baton-editor__toolbar baton-editor__toolbar--view">
-				<CheckboxControl
-					className="baton-editor__expose-rest"
-					label={ __( 'Expose externally (REST)', 'baton' ) }
-					help={ __(
-						'Serve this workflow over the core Abilities REST API for external tooling. Running requires admin authentication (application passwords supported) and runs are logged below; while exposed, the workflow name and its schemas are visible to all logged-in users.',
-						'baton'
-					) }
-					checked={ surfaces.includes( 'rest' ) }
-					onChange={ toggleRestSurface }
-				/>
+				{ SURFACE_CONTROLS.map( ( surface ) => (
+					<CheckboxControl
+						key={ surface.slug }
+						className={ surface.className }
+						label={ surface.label }
+						help={ surface.help }
+						checked={ surfaces.includes( surface.slug ) }
+						onChange={ ( checked ) =>
+							toggleSurface( surface.slug, checked )
+						}
+					/>
+				) ) }
 				<ToggleGroupControl
 					label={ __( 'Editor view', 'baton' ) }
 					hideLabelFromVision

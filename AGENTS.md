@@ -23,7 +23,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Saved values | `Baton_Saved_Values` — one custom table `{prefix}baton_saved_values` for save/state/log rows (dbDelta on activation, dropped on uninstall; static-cached `table_exists()`); append/upsert, newest-wins `find()`, ~1MB byte-capped values with `truncated` flag |
 | Utility abilities | `Baton_Utility_Abilities` + the four ability classes register `baton/save-output`, `baton/save-state`, `baton/load-output`, `baton/log` under category `baton-utility` ("Baton Utilities") |
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
-| External execution (B2) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']` today; room for `cli`/`mcp` later), toggled by the editor's "Expose externally (REST)" checkbox; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`, and `Baton_External_Execution` appends a `log` row ("External run") for every run dispatched through core's `wp-abilities/v1/abilities/{name}/run` route |
+| External execution (B2/B3) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']`, `['cli']`, or both; `mcp` later), toggled by the editor's per-surface "Expose externally" checkboxes; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`; `Baton_External_Execution` appends a `log` row ("External run", value `{trigger, input, success, error?}`) for REST runs arriving through core's `wp-abilities/v1/abilities/{name}/run` routes AND for CLI runs (`Baton_CLI::log_cli_run()` path — `wp baton run` calls the runner directly); WP-CLI surface is strictly gated (not listed/not runnable without the `cli` slug) |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
 
 ### Workflow definition (meta JSON)
@@ -52,6 +52,16 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 ### External REST execution (B2)
 
 `Baton_Workflow_Abilities::register_workflow_ability()` sets the ability's `show_in_rest` meta true only when the workflow's surface map (`_baton_external_surfaces`) contains `rest` — i.e. the editor's "Expose externally (REST)" checkbox. Exposed abilities are served and executable through core's `wp-abilities/v1` REST routes (visible in the abilities list to users who can `read`; execution still requires the ability permission callback → `manage_options`, e.g. application-password machine callers). External callers POST `{ "input": {…} }` to `/wp-json/wp-abilities/v1/abilities/baton/workflow-{id}/run`; the success body is the raw last-step output. Baton never touches the core controller: `Baton_External_Execution` watches the before/after-callbacks dispatch filters (per-request keyed) to (a) distinguish external runs from the `baton/v1` admin-run endpoint and nested execution and (b) append a `kind = log` row (label "External run", value: trigger/input/success/error) via `Baton_Saved_Values`.
+
+### WP-CLI channel (B3) — `wp baton` commands
+
+`includes/class-cli.php` (`Baton_CLI`) registers at `cli_init` from `Baton_Plugin::init()` (and is gated to no-op without `defined( 'WP_CLI' ) && WP_CLI`). Three subcommands:
+
+- `wp baton list [--format=table|json|csv]` — published workflows whose surface map contains `cli` (ID, title, surfaces, step count).
+- `wp baton info <id>` — title/status/surfaces/steps with ability names/newest saved run summary. Strictly gated exactly like `run`: missing / unpublished / non-`cli`-surface IDs all get the same one generic "not exposed" error (exit 1; the surface map decides whether a workflow exists in the CLI channel at all, not just whether it runs).
+- `wp baton run <id> [--input=<json>] [--input-file=<path>] [--format=table|json]` — strict gating (`Baton_CLI::is_cli_runnable()`: exists + published + `cli` surface; anything else gets one generic "not exposed" error that never reveals which check failed — mirrors REST's 404 invisibility). Runs `Baton_Workflow_Runner::run()` directly, prints the FULL runner report; a present `--input`/`--input-file` (JSON object; `{}` clears) replaces the saved `initial_input` like the admin run endpoint; `--format=json` prints the raw report (BEFORE the exit decision) so scripts can capture it; failed run ⇒ `WP_CLI::error` (exit 1). Every CLI run logs an "External run" row (value `{trigger:'cli', …}`) through `Baton_External_Execution::log_cli_run()`.
+
+WP-CLI is absent from the PHPUnit harness, so tests drive the command methods directly against a shim: `tests/php/wp-cli-stub.php` (constant-checked guard — NOT `class_exists`, which self-triggers because PHP pre-binds the shim's own top-level class before its statements run; captured I/O; `WP_CLI\ExitException` on error; simplified `WP_CLI\Utils\format_items`). See `tests/php/Test_CLI_Execution.php`. For static analysis, `phpstan-stubs/wp-cli-stubs.php` is added to phpstan's `bootstrapFiles` (WP-CLI's class/functions; `stubFiles` alone does not register symbols).
 
 ### WP 7.1 delta check on the abilities REST surface (no Baton change needed)
 
@@ -129,14 +139,17 @@ includes/
   class-schema-paths.php  # I/O summaries, path catalogs for UI
   class-ability-catalog.php
   class-rest-controller.php  # POST /baton/v1/workflows[/{id}/run]
+  class-cli.php  # wp baton CLI commands (list/info/run)
   admin/
     class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
     class-run-viewer.php  # Saved values & logs viewer + delete actions
     class-migration-notice.php  # Missing-table notice + one-click dbDelta migration
     class-workflow-list-table.php
+phpstan-stubs/
+  wp-cli-stubs.php        # PHPStan bootstrap stubs for the WP-CLI surface
 src/
   index.js
-  editor/Shell.js         # Editor shell: saving, modals, view toggle
+  editor/Shell.js         # Editor shell: saving, modals, view toggle, exposure surfaces
   editor/NodeView.js      # Node canvas (@xyflow/react)
   editor/components.js    # Shared modals (data filter, I/O detail, loop)
   editor/App.js           # Stack view UI
@@ -165,7 +178,7 @@ npm run lint:css               # stylelint via wp-scripts lint-style
 composer install
 npm run check                  # static only (matches php-lint + js CI jobs)
 npx wp-env start               # Docker required
-npm run test:php               # wp-env phpunit (277 tests)
+npm run test:php               # wp-env phpunit
 ```
 
 ### Node/npm environment (local/CI parity)
@@ -197,8 +210,8 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 ## Known gaps / roadmap
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
-- **CLI & MCP external surfaces** — B2 added per-workflow opt-in REST exposure (`_baton_external_surfaces` = `['rest']`); CLI and MCP surface slugs (and their triggers/permission surfaces) remain future decisions.
-- CLI & Command Palette integrations for "external" workflow execution.
+- **CLI & MCP external surfaces** — **Done (B2/B3):** per-workflow opt-in REST + WP-CLI exposure (`_baton_external_surfaces` = `['rest']` and/or `['cli']`). The MCP surface slug (and its trigger/permission surfaces) remain a future decision.
+- **Command Palette integration** for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.

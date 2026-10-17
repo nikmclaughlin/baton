@@ -19,12 +19,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  * ability's execute callback), and writes a saved-values log row for every
  * such run.
  *
- * Core owns the run controller, so Baton observes dispatch instead: the
+ * The REST channel is observed (core owns the run controller): the
  * rest_request_before_callbacks / rest_request_after_callbacks filters
  * bracket the window (permission callback + handler) in which the workflow
  * ability executes. The marker is keyed by request object, so concurrent or
  * nested internal dispatches in the same PHP process cannot bleed into each
  * other and sequential requests clean up after themselves.
+ *
+ * Baton-owned channels that call the runner directly (B3: WP-CLI's
+ * `wp baton run`) log through the public log_*_run() methods instead — no
+ * dispatch observation needed because the calling code is Baton's own.
  */
 final class Baton_External_Execution {
 
@@ -138,8 +142,37 @@ final class Baton_External_Execution {
 	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
 	 */
 	public static function log_rest_run( int $post_id, $input, array $report ): void {
+		self::log_external_run( Baton_Workflow_CPT::SURFACE_REST, $post_id, $input, $report );
+	}
+
+	/**
+	 * Log a WP-CLI (`wp baton run`) run as a saved-values log row.
+	 *
+	 * B3: the CLI command calls the runner directly (no REST dispatch), so
+	 * the CLI channel logs through this explicit path using the same row
+	 * shape as REST external runs — value = { trigger, success, input,
+	 * error? }, label "External run". Write failures are silent, same as
+	 * the REST path: the run result still reaches the CLI caller.
+	 *
+	 * @param int                  $post_id Workflow post ID.
+	 * @param mixed                $input   Caller input.
+	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
+	 */
+	public static function log_cli_run( int $post_id, $input, array $report ): void {
+		self::log_external_run( Baton_Workflow_CPT::SURFACE_CLI, $post_id, $input, $report );
+	}
+
+	/**
+	 * Shared external-run log-row writer (REST + CLI channels today).
+	 *
+	 * @param string               $trigger Channel/surface slug ('rest', 'cli').
+	 * @param int                  $post_id Workflow post ID.
+	 * @param mixed                $input   Caller input.
+	 * @param array<string, mixed> $report  Runner report (run_id, success, error…).
+	 */
+	private static function log_external_run( string $trigger, int $post_id, $input, array $report ): void {
 		$value = array(
-			'trigger' => 'rest',
+			'trigger' => $trigger,
 			'success' => ! empty( $report['success'] ),
 			'input'   => is_array( $input ) ? Baton_Input_Sanitizer::sanitize_input_array( $input ) : $input,
 		);

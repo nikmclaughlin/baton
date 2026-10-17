@@ -22,6 +22,12 @@ if ( ! file_exists( $_tests_dir . '/includes/functions.php' ) ) {
 require $_tests_dir . '/includes/functions.php';
 
 /**
+ * Minimal WP-CLI shim so Baton's `wp baton` command methods are testable
+ * outside the WP-CLI binary (I/O is captured, not printed).
+ */
+require dirname( __DIR__ ) . '/tests/php/wp-cli-stub.php';
+
+/**
  * Load test fixtures before Baton so ability hooks register in time.
  */
 function baton_manually_load_test_fixtures(): void {
