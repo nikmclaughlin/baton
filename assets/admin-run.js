@@ -92,7 +92,27 @@
 				return;
 			}
 
-			btn.addEventListener( 'click', this.run.bind( this ) );
+			btn.addEventListener( 'click', function () {
+				RunPanel.run();
+			} );
+
+			// Command Palette auto-run: the palette command navigates here
+			// with ?baton_run=palette; run immediately with trigger
+			// "palette", then lift the flag so a refresh doesn't re-run.
+			if (
+				new URLSearchParams( window.location.search ).get(
+					'baton_run'
+				) === 'palette'
+			) {
+				RunPanel.clearPaletteFlag();
+
+				const panel = document.getElementById( 'aw-run-panel' );
+				if ( panel ) {
+					panel.scrollIntoView( { behavior: 'smooth' } );
+				}
+
+				RunPanel.run( 'palette' );
+			}
 
 			if ( window.location.hash === '#aw-run-panel' ) {
 				const panel = document.getElementById( 'aw-run-panel' );
@@ -102,7 +122,25 @@
 			}
 		},
 
-		run() {
+		clearPaletteFlag() {
+			if ( ! window.history || ! window.history.replaceState ) {
+				return;
+			}
+
+			const url = new URL( window.location.href );
+			url.searchParams.delete( 'baton_run' );
+			window.history.replaceState(
+				null,
+				'',
+				url.pathname + url.search + ( window.location.hash || '' )
+			);
+		},
+
+		run( trigger ) {
+			// Button clicks re-enter run() without a trigger argument; only
+			// the Command Palette auto-run tags the run ("palette").
+			const tag = typeof trigger === 'string' && trigger ? trigger : '';
+
 			const btn = document.getElementById( 'aw-run-workflow' );
 			const results = document.getElementById( 'aw-run-results' );
 			const initialInput = document.getElementById(
@@ -113,32 +151,36 @@
 				return;
 			}
 
-			syncDefinition();
+			const auto = tag === 'palette';
 
-			const hidden = document.getElementById( 'workflow_definition' );
-			const definition = parseJson( hidden ? hidden.value : '', {} );
-			if (
-				! definition ||
-				! definition.steps ||
-				! definition.steps.length
-			) {
-				window.alert(
-					strings.noSteps || 'Add at least one step before running.'
+			if ( ! auto ) {
+				syncDefinition();
+
+				const hidden = document.getElementById( 'workflow_definition' );
+				const definition = parseJson( hidden ? hidden.value : '', {} );
+				if (
+					! definition ||
+					! definition.steps ||
+					! definition.steps.length
+				) {
+					window.alert(
+						strings.noSteps || 'Add at least one step before running.'
+					);
+					return;
+				}
+
+				const initial = parseJson(
+					initialInput ? initialInput.value : '',
+					{}
 				);
-				return;
-			}
-
-			const initial = parseJson(
-				initialInput ? initialInput.value : '',
-				{}
-			);
-			if (
-				initialInput &&
-				initialInput.value.trim() &&
-				initial === null
-			) {
-				window.alert( strings.invalidJson || 'Invalid JSON.' );
-				return;
+				if (
+					initialInput &&
+					initialInput.value.trim() &&
+					initial === null
+				) {
+					window.alert( strings.invalidJson || 'Invalid JSON.' );
+					return;
+				}
 			}
 
 			btn.disabled = true;
@@ -149,9 +191,13 @@
 				escapeHtml( strings.running || 'Running…' ) +
 				'</p>';
 
-			const payload = {
-				initial_input: initialInput ? initialInput.value : '{}',
-			};
+			// Palette runs carry only the trigger tag: the server uses the
+			// workflow's saved initial input (the palette collects none).
+			const payload = auto
+				? { trigger: tag }
+				: {
+						initial_input: initialInput ? initialInput.value : '{}',
+				  };
 
 			fetch( cfg.runUrl, {
 				method: 'POST',

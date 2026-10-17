@@ -25,6 +25,7 @@ Baton is a WordPress plugin that chains [Abilities API](https://developer.wordpr
 | Run identity | `Baton_Workflow_Runner` generates a UUID `run_id` per execution (additive report key) and injects `run_id`/`workflow_id`/`step_id` into step inputs **only when the ability's input schema declares the property** (marked `'x-baton' => 'context'`) — never overriding user values |
 | External execution (B2/B3) | Per-workflow opt-in surface map meta `_baton_external_surfaces` (`['rest']`, `['cli']`, or both; `mcp` later), toggled by the editor's per-surface "Expose externally" checkboxes; `Baton_Workflow_Abilities` flips the ability's `show_in_rest` meta only when `rest` is mapped (core's abilities REST routes 404 anything else), permission callback stays `manage_options`; `Baton_External_Execution` appends a `log` row ("External run", value `{trigger, input, success, error?}`) for REST runs arriving through core's `wp-abilities/v1/abilities/{name}/run` routes AND for CLI runs (`Baton_CLI::log_cli_run()` path — `wp baton run` calls the runner directly); WP-CLI surface is strictly gated (not listed/not runnable without the `cli` slug) |
 | Admin viewer | `Baton_Run_Viewer` — per-workflow saved-values panel below the editor: newest-first runs, unified save/state/log timeline (kind chips, expandable values), delete row/run via nonced admin row actions |
+| Command Palette | `assets/baton-palette.js` — always-on admin bridge (enqueued on every admin screen for admins; deps `wp-data` + `wp-api-fetch`; NOT part of the React build), runtime-gated on `window.wp.commands` (silent no-op where the palette is absent). Fetches `GET /baton/v1/workflows` once and registers `baton/run-workflow-{id}` commands ("Run workflow: {title}", category `action`, no context property); the callback closes the palette and navigates to `post.php?post={id}&action=edit&baton_run=palette`, where `admin-run.js` auto-runs the saved definition with `trigger:"palette"` |
 
 ### Workflow definition (meta JSON)
 
@@ -102,9 +103,9 @@ Hooks: `baton_before_step`, `baton_after_step` (see `class-workflow-runner.php`)
 
 - **List** (`includes/admin/class-workflow-list-table.php`): hero banner (`assets/images/baton-banner.png`), search, `WP_List_Table` (DataViews deferred until core default).
 - **Edit** (`includes/admin/class-admin.php`): title/excerpt form (`#baton-form`) + hidden fields `workflow_definition` and `baton_editor_layout` synced from React; abilities/definition/layout bootstrapped as JSON in script tags plus a `window.BatonEditor` config (REST save URL, wp_rest nonce, post ID, strings).
-- **Run** (`assets/admin-run.js`): POSTs to `Baton_Rest_Controller::run_url()`, displays step-by-step report.
+- **Run** (`assets/admin-run.js`): POSTs to `Baton_Rest_Controller::run_url()`, displays step-by-step report. Auto-runs when arriving with `?baton_run=palette` (the Command Palette flow): runs the saved definition with `trigger:"palette"` (payload carries only the trigger — the saved initial input applies, no client preflight alerts), then strips the flag from the URL so refreshes don't re-run.
 - **Save paths**: the classic form POST (`handle_save_post`) and the REST endpoint (`Baton_Rest_Controller::handle_save`) both funnel into `Baton_Admin::save_workflow_post()` → `persist_workflow()`, which writes definition + pruned layout and re-registers the ability when published.
-- **REST endpoints** (`includes/class-rest-controller.php`, namespace `baton/v1`): `POST /baton/v1/workflows` (save; JSON body, same fields as the form POST, returns `{post_id, edit_url, message}`) and `POST /baton/v1/workflows/{id}/run` (JSON body `{initial_input}`; returns the full runner report `{success, steps, error}` — step failures stay HTTP 200 in-band, request-level failures use 400/403/404). `check_permissions()` requires `manage_options`, plus a valid `X-WP-Nonce` (`wp_rest`) for cookie-authenticated requests, matching core's `rest_cookie_check_errors()` semantics.
+- **REST endpoints** (`includes/class-rest-controller.php`, namespace `baton/v1`): `POST /baton/v1/workflows` (save; JSON body, same fields as the form POST, returns `{post_id, edit_url, message}`), `GET /baton/v1/workflows` (Command Palette listing: published workflows as `{id, title}` pairs — no schemas/definitions disclosed), and `POST /baton/v1/workflows/{id}/run` (JSON body `{initial_input, trigger?}`; returns the full runner report `{success, steps, error}` — step failures stay HTTP 200 in-band, request-level failures use 400/403/404). An optional `trigger` tag on the run body records the run origin: `palette` logs a "Palette run" row via `Baton_External_Execution::log_palette_run()`, plain admin runs stay unlogged (same as before), any other value is ignored and cannot spoof channel rows. `check_permissions()` requires `manage_options`, plus a valid `X-WP-Nonce` (`wp_rest`) for cookie-authenticated requests, matching core's `rest_cookie_check_errors()` semantics.
 - **REST save UX** (`src/editor/Shell.js`): modal Done/Close buttons become **Save** when the modal is dirty; a modal save persists the *whole* workflow over `POST /baton/v1/workflows` (JSON body + `X-WP-Nonce`, no page reload), closes the modal only on success, and reports via a `@wordpress/components` `Snackbar`. The DOM submit fallback stays wired for non-JS.
 - **Saved-values viewer** (`includes/admin/class-run-viewer.php`): server-rendered below the run panel on the edit screen; `Baton_Run_Viewer::maybe_handle_action()` handles `baton_delete_value` / `baton_delete_run` GET row actions (core list-table convention) with per-target nonces and `manage_options` on `admin_init`; deletes are workflow-scoped (`delete_run_for_workflow`). Values are JSON-decoded by storage and escaped/truncated at render.
 - **Migration notice** (`includes/admin/class-migration-notice.php`): `Baton_Migration_Notice` — when `Baton_Saved_Values::table_exists()` is false (e.g. after a database restore), admins get a dismissible `admin_notices` warning on every admin page with a one-click "Run database migration" button; it rides the `baton_run_migration` GET row action (wp_verify_nonce + `manage_options` on `admin_init`) that runs `Baton_Saved_Values::install()` (dbDelta) and redirects back with a success notice. Separately, the four utility abilities append `$wpdb->last_error` as `Storage error: …` context (`Baton_Utility_Abilities::storage_error_suffix()`) on write/read failures so pre-migration runs stay diagnosable; error codes, report keys, and schemas are unchanged.
@@ -138,7 +139,7 @@ includes/
   class-input-mapper.php  # Dot paths, scalar vs object input
   class-schema-paths.php  # I/O summaries, path catalogs for UI
   class-ability-catalog.php
-  class-rest-controller.php  # POST /baton/v1/workflows[/{id}/run]
+  class-rest-controller.php  # POST save, POST run, GET viewer, GET list (palette)
   class-cli.php  # wp baton CLI commands (list/info/run)
   admin/
     class-admin.php       # Menu, edit/list, enqueue, save (form POST + shared helper), run panel
@@ -159,6 +160,7 @@ assets/
   baton-editor.css        # Editor + snackbar styles (lint: npm run lint:css)
   admin.css               # List/run/viewer styles
   admin-run.js
+  baton-palette.js        # Admin Command Palette bridge (runs workflows)
   images/baton-banner.png
 tests/
   bootstrap.php           # wp-env phpunit bootstrap
@@ -211,7 +213,6 @@ PHP: no separate build step. Use strict types (`declare(strict_types=1);`) and m
 
 - **Canvas overhaul** (planned next phase — see [docs/canvas-overhaul-plan.md](docs/canvas-overhaul-plan.md)): persisted chain reordering from node drags and other advanced drag-and-drop workflow building, plus mapping auto-suggest from schema paths.
 - **CLI & MCP external surfaces** — **Done (B2/B3):** per-workflow opt-in REST + WP-CLI exposure (`_baton_external_surfaces` = `['rest']` and/or `['cli']`). The MCP surface slug (and its trigger/permission surfaces) remain a future decision.
-- **Command Palette integration** for "external" workflow execution.
 - ActionScheduler integration for scheduling step/workflow execution.
 - Retention controls for saved values (automatic pruning; log rows are the first justified candidate).
 - Code snippet nodes for fully custom data processing.

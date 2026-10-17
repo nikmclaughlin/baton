@@ -23,6 +23,7 @@ External execution is per-workflow and strictly opt-in: the editor's **Expose ex
 **Features:**
 
 * Visual workflow editor with ability steps and data filters between steps
+* Run published workflows from the admin command palette (`cmd+K` → "Run workflow: …", wherever the palette is available); palette-triggered runs are logged in the saved values viewer
 * Input mapping from static workflow input or the previous step's output
 * Each published workflow registers as its own ability for nesting and tooling
 * Cycle detection when workflows call each other

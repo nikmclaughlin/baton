@@ -55,6 +55,13 @@ final class Baton_Rest_Controller {
 					'callback'            => array( self::class, 'handle_save' ),
 					'permission_callback' => array( self::class, 'check_permissions' ),
 				),
+				array(
+					// Command Palette listing: published workflows only,
+					// {id, title} pairs — nothing else disclosed.
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'handle_list' ),
+					'permission_callback' => array( self::class, 'check_permissions' ),
+				),
 			)
 		);
 
@@ -93,6 +100,40 @@ final class Baton_Rest_Controller {
 				),
 			)
 		);
+	}
+
+	/**
+	 * List published workflows for the admin Command Palette.
+	 *
+	 * Deliberately thin: [{id, title}] for every published workflow — no
+	 * schemas, definitions, or exposure maps are disclosed here (the
+	 * palette is the admin user acting, not an external channel, so no
+	 * surface filtering applies).
+	 *
+	 * @param WP_REST_Request $request Request.
+	 * @return WP_REST_Response
+	 */
+	public static function handle_list( WP_REST_Request $request ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- REST dispatch always passes the request.
+		$posts = get_posts(
+			array(
+				'post_type'      => Baton_Workflow_CPT::POST_TYPE,
+				'post_status'    => 'publish',
+				'posts_per_page' => -1,
+				'orderby'        => 'title',
+				'order'          => 'ASC',
+			)
+		);
+
+		$items = array();
+
+		foreach ( $posts as $post ) {
+			$items[] = array(
+				'id'    => (int) $post->ID,
+				'title' => (string) $post->post_title,
+			);
+		}
+
+		return rest_ensure_response( $items );
 	}
 
 	/**
@@ -249,6 +290,11 @@ final class Baton_Rest_Controller {
 	 * success true/false, steps[], and error on failure. HTTP error codes
 	 * are reserved for requests that never ran (unknown ID, bad JSON, etc.).
 	 *
+	 * An optional `trigger` tag records the run's origin. Today only
+	 * "palette" (the Command Palette's auto-run on the edit screen) logs a
+	 * row here — plain admin runs stay unlogged, and any other value is
+	 * ignored (REST/CLI channel rows are written by their own paths).
+	 *
 	 * @param WP_REST_Request $request Request.
 	 * @return WP_REST_Response|WP_Error
 	 */
@@ -284,7 +330,14 @@ final class Baton_Rest_Controller {
 			}
 		}
 
+		$trigger_param = $request->get_param( 'trigger' );
+		$trigger       = is_string( $trigger_param ) ? sanitize_key( $trigger_param ) : '';
+
 		$report = Baton_Workflow_Runner::run( $definition, $workflow_id );
+
+		if ( 'palette' === $trigger ) {
+			Baton_External_Execution::log_palette_run( $workflow_id, $definition['initial_input'] ?? array(), $report );
+		}
 
 		return rest_ensure_response( $report );
 	}

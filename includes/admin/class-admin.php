@@ -30,6 +30,7 @@ final class Baton_Admin {
 		add_action( 'admin_menu', array( self::class, 'register_menu' ) );
 		add_action( 'admin_init', array( self::class, 'maybe_handle_delete' ) );
 		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_assets' ) );
+		add_action( 'admin_enqueue_scripts', array( self::class, 'enqueue_palette' ) );
 
 		// Saved-value viewer on the edit screen (delete actions on admin_init).
 		Baton_Run_Viewer::register();
@@ -435,6 +436,40 @@ final class Baton_Admin {
 		if ( $post_id > 0 && in_array( $action, array( 'edit', '' ), true ) ) {
 			self::enqueue_run_panel_assets( $post_id );
 		}
+	}
+
+	/**
+	 * Enqueue the Command Palette bridge on every admin screen.
+	 *
+	 * Admins only, always-on: the palette itself is core's and may appear
+	 * anywhere; the script gates at runtime on wp.commands existing (older
+	 * cores and builds without the palette silently do nothing).
+	 */
+	public static function enqueue_palette(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'baton-palette',
+			BATON_URL . 'assets/baton-palette.js',
+			array( 'wp-data', 'wp-api-fetch' ),
+			BATON_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'baton-palette',
+			'BatonPalette',
+			array(
+				'restPath' => '/' . Baton_Rest_Controller::ROUTE_NAMESPACE . '/' . Baton_Rest_Controller::ROUTE_BASE,
+				'postUrl'  => admin_url( 'post.php' ),
+				'strings'  => array(
+					// translators: %s: workflow title.
+					'run' => __( 'Run workflow: %s', 'baton' ),
+				),
+			)
+		);
 	}
 
 	/**
